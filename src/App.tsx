@@ -13,6 +13,9 @@ import ContactUs from "./pages/ContactUs.tsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import TermsConditions from "./pages/TermsConditions.tsx";
 import CookiePolicy from "./pages/CookiePolicy.tsx";
+import RefundPolicy from "./pages/RefundPolicy.tsx";
+import ReturnPolicy from "./pages/ReturnPolicy.tsx";
+import CancelPolicy from "./pages/CancelPolicy.tsx";
 import ProductsPage from "./pages/ProductsPage.tsx";
 import CustomSolutionsPage from "./pages/CustomSolutionsPage.tsx";
 
@@ -50,6 +53,9 @@ const AppRoutes = () => {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
         <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
+        <Route path="/return-policy" element={<ReturnPolicy />} />
+        <Route path="/cancel-policy" element={<CancelPolicy />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

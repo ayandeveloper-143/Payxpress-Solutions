@@ -12,12 +12,12 @@ const HeroSection = () => {
       <div className="container-main grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         <ScrollReveal className="space-y-6">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] text-balance">
-            Premium Scripts, Source Code &{" "}
+            Web, Android & iOS{" "}
             <span className="text-accent">Custom Development</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-lg leading-relaxed text-pretty">
-            We provide ready-made software solutions and custom-built applications
-            for businesses and developers.
+            We build modern web applications and mobile apps for Android and iOS,
+            along with APIs and automation systems tailored to business goals.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <Button

@@ -8,11 +8,11 @@ const AboutSection = () => (
       </ScrollReveal>
       <ScrollReveal delay={80}>
         <p className="text-muted-foreground leading-relaxed text-pretty">
-          PayXpress Solutions is a development company specializing in ready-made
-          scripts, SaaS platforms, and automation tools. We also offer end-to-end
-          custom development services tailored to your unique business needs. Our
-          work prioritizes scalability, performance, and reliability — so you can
-          launch confidently and grow without limits.
+          PayXpress Solutions is a software development company building modern web
+          platforms and mobile apps for Android and iOS. We also provide end-to-end
+          custom engineering, API integrations, and automation solutions tailored to
+          your business goals. Our work prioritizes scalability, performance, and
+          reliability so you can launch confidently and grow without limits.
         </p>
       </ScrollReveal>
     </div>

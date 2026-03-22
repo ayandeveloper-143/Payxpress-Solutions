@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: "What technologies do you work with?",
-    a: "Our stack includes React, Node.js, Python, PostgreSQL, and modern cloud infrastructure. We choose the best tools for each project's specific needs.",
+    a: "For web we use TypeScript, React, Next.js, Node.js, Python, and PostgreSQL. For mobile we build Android and iOS apps with Flutter, React Native, Kotlin, and Swift. We pick the best stack based on your product goals.",
   },
   {
     q: "How long does a typical project take?",

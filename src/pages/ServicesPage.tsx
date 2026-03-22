@@ -5,20 +5,39 @@ import ScrollReveal from "@/components/ScrollReveal";
 const services = [
     {
         title: "Custom Web Applications",
-        detail: "Scalable dashboards, portals, and internal systems tailored to your workflow.",
+        detail: "Scalable dashboards, portals, and SaaS products for operations, analytics, and customer workflows.",
     },
     {
-        title: "E-commerce Development",
-        detail: "Complete online stores with smooth checkout flows, payment integration, and order operations.",
+        title: "Android & iOS App Development",
+        detail: "Mobile products for both Android and iOS with smooth UX, secure APIs, and production-ready performance.",
     },
     {
-        title: "Automation & Integrations",
-        detail: "Automate repetitive operations and connect your business tools to save time.",
+        title: "E-commerce & Platform Development",
+        detail: "High-converting stores and service platforms with payment integration, admin management, and order flows.",
+    },
+    {
+        title: "API, Automation & Integrations",
+        detail: "Custom APIs and automation pipelines to connect your tools and remove repetitive manual work.",
     },
     {
         title: "Maintenance & Support",
-        detail: "Performance optimization, security hardening, bug fixes, and ongoing platform upgrades.",
+        detail: "Performance optimization, security hardening, bug fixes, and ongoing upgrades after launch.",
     },
+];
+
+const techStack = [
+    "TypeScript",
+    "React",
+    "Next.js",
+    "Node.js",
+    "Python",
+    "Go",
+    "Flutter",
+    "React Native",
+    "Kotlin",
+    "Swift",
+    "PostgreSQL",
+    "Docker",
 ];
 
 const workflow = [
@@ -55,8 +74,8 @@ const ServicesPage = () => (
                     End-to-end software services from idea to launch and beyond.
                 </h1>
                 <p className="text-muted-foreground leading-relaxed max-w-3xl">
-                    We combine product strategy, UI engineering, and robust backend delivery to help teams launch faster with
-                    confidence.
+                    We deliver complete software solutions across web and mobile. From product strategy to deployment, we help
+                    teams launch reliable platforms for browser, Android, and iOS users.
                 </p>
             </ScrollReveal>
 
@@ -68,6 +87,21 @@ const ServicesPage = () => (
                     </ScrollReveal>
                 ))}
             </section>
+
+            <ScrollReveal className="border rounded-2xl p-6 sm:p-8 bg-card space-y-4">
+                <h2 className="text-2xl font-semibold">Trending Tech Stack We Use</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    We choose tools based on project goals, but these are the most in-demand and battle-tested technologies we
+                    use for modern products.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    {techStack.map((tech) => (
+                        <span key={tech} className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
+                            {tech}
+                        </span>
+                    ))}
+                </div>
+            </ScrollReveal>
 
             <section className="grid lg:grid-cols-2 gap-8">
                 <ScrollReveal className="border rounded-2xl p-6 sm:p-8 bg-muted/40 space-y-4">

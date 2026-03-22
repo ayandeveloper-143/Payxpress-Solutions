@@ -2,9 +2,21 @@ import { Globe, Smartphone, Code2 } from "lucide-react";
 import ScrollReveal from "./ScrollReveal";
 
 const services = [
-  { icon: Globe, title: "Web Development", desc: "Responsive websites and web applications built with modern frameworks and best practices." },
-  { icon: Smartphone, title: "App Development", desc: "Cross-platform mobile applications with native-like performance and seamless UX." },
-  { icon: Code2, title: "Script Development", desc: "Custom scripts, APIs, and automation tools to streamline your business operations." },
+  {
+    icon: Globe,
+    title: "Web Development",
+    desc: "Business websites, dashboards, and SaaS platforms built with React, Next.js, TypeScript, and modern backend architecture.",
+  },
+  {
+    icon: Smartphone,
+    title: "Android & iOS Apps",
+    desc: "Mobile applications for both Android and iOS using Flutter, React Native, Kotlin, and Swift based on your product needs.",
+  },
+  {
+    icon: Code2,
+    title: "API & Automation",
+    desc: "Secure APIs, admin panels, and workflow automation with Node.js, Python, PostgreSQL, and cloud-native tooling.",
+  },
 ];
 
 const ServicesSection = () => (
