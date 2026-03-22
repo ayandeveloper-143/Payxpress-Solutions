@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+
+    --primary: 27 99% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 27 30% 94%;
+    --secondary-foreground: 27 99% 30%;
+
+    --muted: 27 20% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 216 100% 28%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 27 20% 88%;
+    --input: 27 20% 88%;
+    --ring: 216 100% 28%;
+
+    --radius: 0.75rem;
+
+    --section-alt: 27 30% 97%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  .section-padding {
+    @apply py-20 md:py-24;
+  }
+
+  .container-main {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  .scroll-reveal {
+    animation: revealUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .page-enter {
+    animation: pageEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
