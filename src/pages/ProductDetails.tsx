@@ -3,7 +3,16 @@ import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
+import { useCart } from "@/context/CartContext";
 import { getProductBySlug, products as fallbackProducts } from "@/data/products";
+import { useToast } from "@/hooks/use-toast";
 import { fetchProductBySlug, fetchProducts } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -31,6 +40,9 @@ const ProductDetails = () => {
     const products = productsQuery.data?.products ?? fallbackProducts;
     const screenshotsRef = useRef<HTMLDivElement | null>(null);
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
+    const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
+    const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice } = useCart();
+    const { toast } = useToast();
 
     if (!product && (productQuery.isLoading || productQuery.isFetching)) {
         return (
@@ -64,6 +76,44 @@ const ProductDetails = () => {
             return bScore - aScore;
         })
         .slice(0, 3);
+
+    const addCurrentProductToCart = () => {
+        addToCart({
+            slug: product.slug,
+            title: product.title,
+            price: product.price,
+            image: product.image,
+            quantity: 1,
+        });
+    };
+
+    const handleAddToCart = () => {
+        addCurrentProductToCart();
+        toast({
+            title: "Added to Cart",
+            description: `${product.title} has been added to your cart`,
+        });
+    };
+
+    const handleBuyNow = () => {
+        addCurrentProductToCart();
+        setCheckoutSheetOpen(true);
+        toast({
+            title: "Ready for Checkout",
+            description: `${product.title} is added. You can continue checkout from side menu.`,
+        });
+    };
+
+    const preventCloseOnToastClick = (event: Event) => {
+        const target = event.target as HTMLElement | null;
+        if (!target) return;
+
+        if (target.closest(".toast-viewport") || target.closest(".toaster")) {
+            event.preventDefault();
+        }
+    };
+
+    const currentProductQuantity = cart.find((item) => item.slug === product.slug)?.quantity ?? 0;
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
@@ -99,8 +149,20 @@ const ProductDetails = () => {
                         </p>
 
                         <div className="flex flex-wrap gap-3 pt-3">
-                            <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                                <Link to="/contact">Buy Now</Link>
+                            <Button
+                                type="button"
+                                className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                onClick={handleBuyNow}
+                            >
+                                Buy Now
+                            </Button>
+                            <Button type="button" variant="outline" onClick={handleAddToCart} className="relative">
+                                Add to Cart
+                                {currentProductQuantity > 0 && (
+                                    <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                                        {currentProductQuantity}
+                                    </span>
+                                )}
                             </Button>
                             <Button asChild variant="outline">
                                 <Link to="/products">Back to Products</Link>
@@ -223,6 +285,85 @@ const ProductDetails = () => {
                     ) : null}
                 </DialogContent>
             </Dialog>
+
+            <Sheet open={checkoutSheetOpen} onOpenChange={setCheckoutSheetOpen} modal={false}>
+                <SheetContent
+                    side="right"
+                    className="w-full sm:max-w-md p-0"
+                    onInteractOutside={preventCloseOnToastClick}
+                >
+                    <div className="h-full flex flex-col">
+                        <SheetHeader className="p-6 border-b">
+                            <SheetTitle>Checkout</SheetTitle>
+                            <SheetDescription>
+                                {getTotalItems() > 0
+                                    ? `${getTotalItems()} item${getTotalItems() > 1 ? "s" : ""} in your cart`
+                                    : "Your cart is empty"}
+                            </SheetDescription>
+                        </SheetHeader>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {cart.length === 0 ? (
+                                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                                    Add products to continue checkout.
+                                </div>
+                            ) : (
+                                cart.map((item) => (
+                                    <div key={item.slug} className="flex items-start gap-3 rounded-lg border p-3">
+                                        <img src={item.image} alt={item.title} className="h-16 w-14 rounded-md object-cover" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                                                <p className="text-sm font-semibold text-destructive whitespace-nowrap">{item.price}</p>
+                                            </div>
+
+                                            <div className="mt-2 flex items-center gap-3">
+                                                <div className="inline-flex items-center rounded-md border h-9">
+                                                    <button
+                                                        type="button"
+                                                        className="h-full w-9 text-base font-semibold text-muted-foreground hover:text-foreground"
+                                                        onClick={() => updateQuantity(item.slug, item.quantity - 1)}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <span className="h-full min-w-10 border-x px-3 text-sm flex items-center justify-center">
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="h-full w-9 text-base font-semibold text-muted-foreground hover:text-foreground"
+                                                        onClick={() => updateQuantity(item.slug, item.quantity + 1)}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+                                                    onClick={() => removeFromCart(item.slug)}
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="border-t p-6 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">Total</span>
+                                <span className="text-base font-semibold text-foreground">{getTotalPrice()}</span>
+                            </div>
+                            <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={cart.length === 0}>
+                                <Link to="/checkout">Proceed to Checkout</Link>
+                            </Button>
+                        </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
 
             <Footer />
         </div>

@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
+import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ProductDetails from "./pages/ProductDetails.tsx";
@@ -18,6 +20,8 @@ import ReturnPolicy from "./pages/ReturnPolicy.tsx";
 import CancelPolicy from "./pages/CancelPolicy.tsx";
 import ProductsPage from "./pages/ProductsPage.tsx";
 import CustomSolutionsPage from "./pages/CustomSolutionsPage.tsx";
+import Auth from "./pages/Auth.tsx";
+import Checkout from "./pages/Checkout.tsx";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +60,8 @@ const AppRoutes = () => {
         <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/return-policy" element={<ReturnPolicy />} />
         <Route path="/cancel-policy" element={<CancelPolicy />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/checkout" element={<Checkout />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -69,7 +75,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppRoutes />
+        <AuthProvider>
+          <CartProvider>
+            <AppRoutes />
+          </CartProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

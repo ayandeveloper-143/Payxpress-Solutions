@@ -13,6 +13,14 @@ const toNumber = (value: string | undefined, fallback: number) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toBoolean = (value: string | undefined, fallback: boolean) => {
+    if (value === undefined) {
+        return fallback;
+    }
+
+    return value.toLowerCase() === "true";
+};
+
 export const env = {
     port: toNumber(process.env.PORT, 8846),
     clientOrigin: process.env.CLIENT_ORIGIN ?? "https://payxpress-solutions.com",
@@ -21,4 +29,9 @@ export const env = {
     dbUser: process.env.DB_USER ?? "root",
     dbPassword: process.env.DB_PASSWORD ?? "",
     dbName: process.env.DB_NAME ?? "payxpress_api",
+    paymentGatewayEnabled: toBoolean(process.env.PAYMENT_GATEWAY_ENABLED, true),
+    cashfreeAppId: process.env.CASHFREE_APP_ID ?? "",
+    cashfreeSecretKey: process.env.CASHFREE_SECRET_KEY ?? "",
+    cashfreeMode: process.env.CASHFREE_MODE === "production" ? "production" : "sandbox",
+    cashfreeApiVersion: process.env.CASHFREE_API_VERSION ?? "2023-08-01",
 };

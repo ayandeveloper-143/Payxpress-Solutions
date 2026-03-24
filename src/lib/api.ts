@@ -47,6 +47,23 @@ export interface ContactResponse {
     enquiryId: number;
 }
 
+export interface CreateCashfreeSessionPayload {
+    orderId: string;
+    orderAmount: number;
+    orderCurrency: string;
+    customerId: string;
+    customerName?: string;
+    customerEmail: string;
+    customerPhone: string;
+    orderNote?: string;
+}
+
+export interface CreateCashfreeSessionResponse {
+    message: string;
+    orderId: string;
+    paymentSessionId: string;
+}
+
 export const fetchProducts = () => request<ProductsResponse>("/products");
 
 export const fetchProductBySlug = (slug: string) =>
@@ -54,6 +71,15 @@ export const fetchProductBySlug = (slug: string) =>
 
 export const submitContact = (payload: ContactPayload) =>
     request<ContactResponse>("/contact", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+export const createCashfreeSession = (payload: CreateCashfreeSessionPayload) =>
+    request<CreateCashfreeSessionResponse>("/payments/cashfree/session", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

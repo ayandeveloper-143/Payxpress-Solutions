@@ -2,6 +2,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { useCart } from "@/context/CartContext";
+import { useToast } from "@/hooks/use-toast";
+import { ShoppingCart } from "lucide-react";
 
 interface ProductCardProps {
   slug: string;
@@ -14,9 +17,27 @@ interface ProductCardProps {
 
 const ProductCard = ({ slug, title, description, tag, price, image }: ProductCardProps) => {
   const navigate = useNavigate();
+  const { cart, addToCart } = useCart();
+  const { toast } = useToast();
+  const cartQuantity = cart.find((item) => item.slug === slug)?.quantity ?? 0;
 
   const openProduct = () => {
     navigate(`/products/${slug}`);
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart({
+      slug,
+      title,
+      price,
+      image,
+      quantity: 1,
+    });
+    toast({
+      title: "Added to Cart",
+      description: `${title} has been added to your cart`,
+    });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -40,11 +61,26 @@ const ProductCard = ({ slug, title, description, tag, price, image }: ProductCar
         <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">{tag}</Badge>
         <h3 className="font-semibold text-lg">{title}</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-2 gap-2">
           <span className="font-bold text-foreground">{price}</span>
-          <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-            <Link to={`/products/${slug}`}>View Details</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="relative text-accent border-accent/50 hover:bg-accent/10"
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart size={16} />
+              {cartQuantity > 0 && (
+                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                  {cartQuantity}
+                </span>
+              )}
+            </Button>
+            <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
+              <Link to={`/products/${slug}`}>Details</Link>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
