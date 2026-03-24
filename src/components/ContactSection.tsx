@@ -2,21 +2,43 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiRequestError, submitContact } from "@/lib/api";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import ScrollReveal from "./ScrollReveal";
 
 const ContactSection = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
       toast.error("Please fill in all fields.");
       return;
     }
-    toast.success("Message sent! We'll get back to you soon.");
-    setForm({ name: "", email: "", message: "" });
+
+    try {
+      setIsSubmitting(true);
+      await submitContact({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        subject: "Website Contact",
+        message: form.message.trim(),
+      });
+
+      toast.success("Message sent! We'll get back to you soon.");
+      setForm({ name: "", email: "", message: "" });
+    } catch (error) {
+      if (error instanceof ApiRequestError) {
+        toast.error(error.message);
+      } else {
+        toast.error("Could not send message. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,9 +76,10 @@ const ContactSection = () => {
             />
             <Button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all h-11"
             >
-              Send Message
+              {isSubmitting ? "Sending..." : "Send Message"}
             </Button>
           </form>
         </ScrollReveal>

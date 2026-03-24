@@ -3,7 +3,9 @@ import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { getProductBySlug, products } from "@/data/products";
+import { getProductBySlug, products as fallbackProducts } from "@/data/products";
+import { fetchProductBySlug, fetchProducts } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
@@ -15,9 +17,28 @@ const ProductDetails = () => {
         return <Navigate to="/" replace />;
     }
 
-    const product = getProductBySlug(slug);
+    const productQuery = useQuery({
+        queryKey: ["product", slug],
+        queryFn: () => fetchProductBySlug(slug),
+    });
+
+    const productsQuery = useQuery({
+        queryKey: ["products"],
+        queryFn: fetchProducts,
+    });
+
+    const product = productQuery.data?.product ?? getProductBySlug(slug);
+    const products = productsQuery.data?.products ?? fallbackProducts;
     const screenshotsRef = useRef<HTMLDivElement | null>(null);
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
+
+    if (!product && (productQuery.isLoading || productQuery.isFetching)) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+                Loading product details...
+            </div>
+        );
+    }
 
     if (!product) {
         return <Navigate to="/404" replace />;

@@ -1,5 +1,6 @@
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import ContactSection from "@/components/ContactSection";
 import ScrollReveal from "@/components/ScrollReveal";
 
 const ContactUs = () => (
@@ -68,6 +69,8 @@ const ContactUs = () => (
                 </ScrollReveal>
             </section>
         </main>
+
+        <ContactSection />
 
         <Footer />
     </div>

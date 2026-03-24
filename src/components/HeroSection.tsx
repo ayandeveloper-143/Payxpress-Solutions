@@ -2,13 +2,21 @@ import { Button } from "@/components/ui/button";
 import heroImage from "@/assets/hero-image.jpg";
 import ScrollReveal from "./ScrollReveal";
 
+
+const ThemeImage = ({ lightSrc, darkSrc, alt, className = '', ...props }) => {
+  const src = lightSrc;
+
+  return <img src={src} alt={alt} className={className} {...props} />;
+};
+
+
 const HeroSection = () => {
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
-    <section id="home" className="section-padding pt-16">
+    <section id="home" className="section-padding pt-18">
       <div className="container-main grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         <ScrollReveal className="space-y-6">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] text-balance">
@@ -37,6 +45,29 @@ const HeroSection = () => {
           <p className="text-sm text-muted-foreground pt-2">
             Trusted by developers and growing businesses
           </p>
+          <div className="flex flex-wrap items-center gap-4 md:gap-8 pt-2 opacity-70 relative">
+            <ThemeImage
+              lightSrc="/rezorpay.svg"
+              darkSrc="/rezorpay_dark.svg"
+              className="h-5 md:h-6 select-none"
+              draggable={false}
+              alt="Rezorpay"
+            />
+            <ThemeImage
+              lightSrc="/cashfree.svg"
+              darkSrc="/cashfree_dark.svg"
+              className="h-5 md:h-6 select-none"
+              draggable={false}
+              alt="Cashfree"
+            />
+            <ThemeImage
+              lightSrc="/payu.svg"
+              darkSrc="/payu_dark.svg"
+              className="h-5 md:h-6 select-none"
+              draggable={false}
+              alt="PayU"
+            />
+          </div>
         </ScrollReveal>
 
         <ScrollReveal delay={150}>
