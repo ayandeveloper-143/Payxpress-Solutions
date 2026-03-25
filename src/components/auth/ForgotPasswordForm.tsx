@@ -20,7 +20,7 @@ interface ForgotPasswordFormProps {
   onToggleForm?: () => void;
 }
 
-const ForgotPasswordForm = ({ onSuccess, onToggleForm }: ForgotPasswordFormProps) => {
+const ForgotPasswordForm = ({ onToggleForm }: ForgotPasswordFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { forgotPassword } = useAuth();
   const { toast } = useToast();
@@ -37,10 +37,10 @@ const ForgotPasswordForm = ({ onSuccess, onToggleForm }: ForgotPasswordFormProps
       setIsLoading(true);
       await forgotPassword(values.email);
       toast({
-        title: "Success",
-        description: "Password reset email sent! Check your inbox.",
+        title: "Reset Link Sent",
+        description: "Please check your email for password reset link.",
       });
-      onSuccess?.();
+      form.reset();
     } catch (error) {
       toast({
         title: "Error",
@@ -61,7 +61,9 @@ const ForgotPasswordForm = ({ onSuccess, onToggleForm }: ForgotPasswordFormProps
           </div>
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight">Reset Password</h2>
-            <p className="text-muted-foreground text-sm">Enter your email to receive reset instructions</p>
+            <p className="text-muted-foreground text-sm">
+              Enter your email to receive a password reset link
+            </p>
           </div>
         </div>
 

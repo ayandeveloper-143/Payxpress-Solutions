@@ -22,6 +22,7 @@ import ProductsPage from "./pages/ProductsPage.tsx";
 import CustomSolutionsPage from "./pages/CustomSolutionsPage.tsx";
 import Auth from "./pages/Auth.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ const AppRoutes = () => {
         <Route path="/return-policy" element={<ReturnPolicy />} />
         <Route path="/cancel-policy" element={<CancelPolicy />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/checkout" element={<Checkout />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />

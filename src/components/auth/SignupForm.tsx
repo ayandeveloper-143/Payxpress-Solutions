@@ -9,15 +9,17 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
 
-const signupSchema = z.object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email address"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-});
+const signupSchema = z
+    .object({
+        name: z.string().min(2, "Name must be at least 2 characters"),
+        email: z.string().email("Invalid email address"),
+        password: z.string().min(6, "Password must be at least 6 characters"),
+        confirmPassword: z.string(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+        message: "Passwords don't match",
+        path: ["confirmPassword"],
+    });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
@@ -26,7 +28,7 @@ interface SignupFormProps {
     onToggleForm?: () => void;
 }
 
-const SignupForm = ({ onSuccess, onToggleForm }: SignupFormProps) => {
+const SignupForm = ({ onToggleForm }: SignupFormProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const { signup } = useAuth();
     const { toast } = useToast();
@@ -44,12 +46,17 @@ const SignupForm = ({ onSuccess, onToggleForm }: SignupFormProps) => {
     const onSubmit = async (values: SignupFormValues) => {
         try {
             setIsLoading(true);
-            await signup(values.email, values.password, values.name);
+            const response = await signup(values.email, values.password, values.name);
+
+            if (!response.requiresEmailVerification) {
+                throw new Error("Unable to send verification link.");
+            }
+
             toast({
-                title: "Success",
-                description: "Account created successfully!",
+                title: "Verification Link Sent",
+                description: "Please check your email and click the verification link.",
             });
-            onSuccess?.();
+            onToggleForm?.();
         } catch (error) {
             toast({
                 title: "Error",

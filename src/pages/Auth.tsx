@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import LoginForm from "@/components/auth/LoginForm";
@@ -12,8 +13,39 @@ type FormType = "login" | "signup" | "forgot";
 
 const Auth = () => {
   const [formType, setFormType] = useState<FormType>("login");
-  const { isLoggedIn } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isLoggedIn, verifySignupToken } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = searchParams.get("verifyToken");
+
+    if (!token) {
+      return;
+    }
+
+    const verify = async () => {
+      try {
+        const message = await verifySignupToken(token);
+        toast({
+          title: "Email Verified",
+          description: message,
+        });
+      } catch (error) {
+        toast({
+          title: "Verification Failed",
+          description: error instanceof Error ? error.message : "Invalid or expired verification link.",
+          variant: "destructive",
+        });
+      } finally {
+        setSearchParams({});
+        setFormType("login");
+      }
+    };
+
+    verify();
+  }, [searchParams, setSearchParams, toast, verifySignupToken]);
 
   useEffect(() => {
     if (isLoggedIn) {

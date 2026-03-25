@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "allowJs": true,
     "noImplicitAny": false,
     "noUnusedLocals": false,
@@ -19,6 +21,9 @@
     },
     {
       "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./api-source/tsconfig.json"
     }
   ]
 }

@@ -1,13 +1,42 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, AuthContextType } from "@/types/auth";
+import {
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  startForgotPassword,
+  startSignup,
+  verifySignupLink,
+} from "@/lib/api";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  // Load user from localStorage on mount
+  // Restore auth state from JWT and fallback stored user data.
   useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+
+    if (token) {
+      getCurrentUser()
+        .then((response) => {
+          const authUser: AuthUser = {
+            id: response.user.id,
+            email: response.user.email,
+            name: response.user.name,
+          };
+          setUser(authUser);
+          localStorage.setItem("user", JSON.stringify(authUser));
+        })
+        .catch(() => {
+          setUser(null);
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("user");
+        });
+      return;
+    }
+
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       try {
@@ -19,41 +48,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock login - in production, this would call a backend API
-    if (!email || !password) {
-      throw new Error("Email and password are required");
-    }
-    const authUser: AuthUser = { id: Date.now().toString(), email, name: email.split("@")[0] };
+    const response = await loginUser({ email, password });
+    const authUser: AuthUser = {
+      id: response.user.id,
+      email: response.user.email,
+      name: response.user.name,
+    };
     setUser(authUser);
+    localStorage.setItem("auth_token", response.token);
     localStorage.setItem("user", JSON.stringify(authUser));
   };
 
   const signup = async (email: string, password: string, name: string) => {
-    // Mock signup - in production, this would call a backend API
-    if (!email || !password || !name) {
-      throw new Error("All fields are required");
-    }
-    const authUser: AuthUser = { id: Date.now().toString(), email, name };
+    const response = await startSignup({ name, email, password });
+    return {
+      requiresEmailVerification: response.requiresEmailVerification,
+      email: response.email,
+    };
+  };
+
+  const verifySignupToken = async (token: string) => {
+    const response = await verifySignupLink({ token });
+    const authUser: AuthUser = {
+      id: response.user.id,
+      email: response.user.email,
+      name: response.user.name,
+    };
+
     setUser(authUser);
+    localStorage.setItem("auth_token", response.token);
     localStorage.setItem("user", JSON.stringify(authUser));
+    return response.message;
   };
 
   const forgotPassword = async (email: string) => {
-    // Mock forgot password - in production, this would send an email
-    if (!email) {
-      throw new Error("Email is required");
-    }
-    // Just show a success message
-    console.log("Password reset email sent to:", email);
+    await startForgotPassword({ email });
   };
 
   const logout = () => {
+    logoutUser().catch(() => {
+      // Ignore network/logout errors and clear local state anyway.
+    });
     setUser(null);
+    localStorage.removeItem("auth_token");
     localStorage.removeItem("user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, login, signup, forgotPassword, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoggedIn: !!user,
+        login,
+        signup,
+        verifySignupToken,
+        forgotPassword,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

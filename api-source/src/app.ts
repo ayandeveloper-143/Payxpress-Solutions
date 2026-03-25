@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware.js";
+import authRouter from "./routes/auth.routes.js";
 import contactRouter from "./routes/contact.routes.js";
 import healthRouter from "./routes/health.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
@@ -20,6 +21,7 @@ app.use("/api", healthRouter);
 app.use("/api", productRouter);
 app.use("/api", contactRouter);
 app.use("/api", paymentRouter);
+app.use("/api", authRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
