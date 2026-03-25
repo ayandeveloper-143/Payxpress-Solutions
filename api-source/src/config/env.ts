@@ -30,8 +30,14 @@ export const env = {
     dbPassword: process.env.DB_PASSWORD ?? "",
     dbName: process.env.DB_NAME ?? "payxpress_api",
     paymentGatewayEnabled: toBoolean(process.env.PAYMENT_GATEWAY_ENABLED, true),
-    cashfreeAppId: process.env.CASHFREE_APP_ID ?? "",
-    cashfreeSecretKey: process.env.CASHFREE_SECRET_KEY ?? "",
     cashfreeMode: process.env.CASHFREE_MODE === "production" ? "production" : "sandbox",
+    cashfreeAppId:
+        process.env.CASHFREE_MODE === "production"
+            ? process.env.CASHFREE_PRODUCTION_APP_ID ?? process.env.CASHFREE_APP_ID ?? ""
+            : process.env.CASHFREE_SANDBOX_APP_ID ?? process.env.CASHFREE_APP_ID ?? "",
+    cashfreeSecretKey:
+        process.env.CASHFREE_MODE === "production"
+            ? process.env.CASHFREE_PRODUCTION_SECRET_KEY ?? process.env.CASHFREE_SECRET_KEY ?? ""
+            : process.env.CASHFREE_SANDBOX_SECRET_KEY ?? process.env.CASHFREE_SECRET_KEY ?? "",
     cashfreeApiVersion: process.env.CASHFREE_API_VERSION ?? "2023-08-01",
 };

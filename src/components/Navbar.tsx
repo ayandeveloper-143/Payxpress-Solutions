@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X, ShoppingCart, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -27,15 +27,22 @@ const links = [
 ];
 
 type AuthFormType = "login" | "signup" | "forgot";
+const bannerStorageKey = "development-banner-hidden";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authFormType, setAuthFormType] = useState<AuthFormType>("login");
+  const [bannerVisible, setBannerVisible] = useState(true);
   const { cart, getTotalItems, getTotalPrice, removeFromCart, updateQuantity } = useCart();
   const { isLoggedIn, user, logout } = useAuth();
   const cartItems = getTotalItems();
+
+  useEffect(() => {
+    const hiddenBanner = window.localStorage.getItem(bannerStorageKey) === "true";
+    setBannerVisible(!hiddenBanner);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -50,6 +57,11 @@ const Navbar = () => {
   const handleAuthSuccess = () => {
     setAuthDialogOpen(false);
     setAuthFormType("login");
+  };
+
+  const closeBanner = () => {
+    setBannerVisible(false);
+    window.localStorage.setItem(bannerStorageKey, "true");
   };
 
   const renderCartPanel = () => (
@@ -127,155 +139,174 @@ const Navbar = () => {
   );
 
   return (
-    <nav
-      className={cn(
-        "fixed top-0 z-50 w-full border-b transition-colors duration-300",
-        open ? "bg-white border-border" : "bg-background/95 backdrop-blur-sm border-border",
-      )}
-    >
-      <div className="container-main flex items-center justify-between h-16">
-        <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <img src="/logo.png" alt="PayXpress logo" className="h-12 w-auto" />
-        </Link>
-
-        <div className="hidden md:flex items-center gap-8">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="hidden md:flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            className="relative text-accent border-accent/50 hover:bg-accent/10"
-            onClick={() => setCartSheetOpen(true)}
-          >
-            <ShoppingCart size={20} />
-            {cartItems > 0 && (
-              <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {cartItems}
-              </span>
-            )}
-          </Button>
-
-          {isLoggedIn ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">{user?.name}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleLogout}
-                className="text-destructive border-destructive/50 hover:bg-destructive/10"
-              >
-                <LogOut size={20} />
-              </Button>
-            </div>
-          ) : (
-            <Button
+    <>
+      {bannerVisible && (
+        <div className="fixed top-0 z-[60] w-full bg-red-600 text-white">
+          <div className="container-main flex h-8 items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em]">
+            <span>Development Phase</span>
+            <button
               type="button"
-              className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
-              onClick={() => openAuthPopup("login")}
+              onClick={closeBanner}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 hover:text-white"
+              aria-label="Close development banner"
             >
-              Login
-            </Button>
-          )}
+              <X size={14} />
+            </button>
+          </div>
         </div>
+      )}
 
-        <button className="md:hidden" onClick={() => setOpen(!open)}>
-          {open ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
-
-      <div
+      <nav
         className={cn(
-          "md:hidden border-t bg-background px-4 overflow-hidden transition-all duration-300 ease-out",
-          open ? "max-h-[420px] opacity-100 translate-y-0 pb-4 pt-2" : "max-h-0 opacity-0 -translate-y-1 pb-0 pt-0 pointer-events-none",
+          "fixed z-50 w-full border-b transition-[top,colors] duration-300",
+          bannerVisible ? "top-8" : "top-0",
+          open ? "bg-white border-border" : "bg-background/95 backdrop-blur-sm border-border",
         )}
-        aria-hidden={!open}
       >
-        <div className="space-y-2">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              onClick={() => setOpen(false)}
-              className="block w-full text-left py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              {l.label}
-            </Link>
-          ))}
-          <div className="flex gap-2 pt-2 border-t">
+        <div className="container-main flex items-center justify-between h-16">
+          <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
+            <img src="/logo.png" alt="PayXpress logo" className="h-12 w-auto" />
+          </Link>
+
+          <div className="hidden md:flex items-center gap-8">
+            {links.map((l) => (
+              <Link
+                key={l.label}
+                to={l.to}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+
+          <div className="hidden md:flex items-center gap-4">
             <Button
               variant="outline"
-              className="flex-1 text-accent border-accent/50 hover:bg-accent/10 relative"
-              onClick={() => {
-                setOpen(false);
-                setCartSheetOpen(true);
-              }}
+              size="icon"
+              className="relative text-accent border-accent/50 hover:bg-accent/10"
+              onClick={() => setCartSheetOpen(true)}
             >
-              <ShoppingCart size={16} className="mr-2" />
-              Cart {cartItems > 0 && `(${cartItems})`}
+              <ShoppingCart size={20} />
+              {cartItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartItems}
+                </span>
+              )}
             </Button>
+
             {isLoggedIn ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">{user?.name}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                >
+                  <LogOut size={20} />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                onClick={() => openAuthPopup("login")}
+              >
+                Login
+              </Button>
+            )}
+          </div>
+
+          <button className="md:hidden" onClick={() => setOpen(!open)}>
+            {open ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        <div
+          className={cn(
+            "md:hidden border-t bg-background px-4 overflow-hidden transition-all duration-300 ease-out",
+            open ? "max-h-[420px] opacity-100 translate-y-0 pb-4 pt-2" : "max-h-0 opacity-0 -translate-y-1 pb-0 pt-0 pointer-events-none",
+          )}
+          aria-hidden={!open}
+        >
+          <div className="space-y-2">
+            {links.map((l) => (
+              <Link
+                key={l.label}
+                to={l.to}
+                onClick={() => setOpen(false)}
+                className="block w-full text-left py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {l.label}
+              </Link>
+            ))}
+            <div className="flex gap-2 pt-2 border-t">
               <Button
                 variant="outline"
-                onClick={handleLogout}
-                className="flex-1 text-destructive border-destructive/50 hover:bg-destructive/10"
+                className="flex-1 text-accent border-accent/50 hover:bg-accent/10 relative"
+                onClick={() => {
+                  setOpen(false);
+                  setCartSheetOpen(true);
+                }}
               >
-                <LogOut size={16} className="mr-2" />
-                Logout
+                <ShoppingCart size={16} className="mr-2" />
+                Cart {cartItems > 0 && `(${cartItems})`}
               </Button>
-            ) : (
-              <Link to="/auth" onClick={() => setOpen(false)} className="flex-1">
-                <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                  Login
+              {isLoggedIn ? (
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  className="flex-1 text-destructive border-destructive/50 hover:bg-destructive/10"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  Logout
                 </Button>
-              </Link>
-            )}
+              ) : (
+                <Link to="/auth" onClick={() => setOpen(false)} className="flex-1">
+                  <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                    Login
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md p-0">
-          {renderCartPanel()}
-        </SheetContent>
-      </Sheet>
+        <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-md p-0">
+            {renderCartPanel()}
+          </SheetContent>
+        </Sheet>
 
-      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-        <DialogContent className="w-[94vw] max-w-md border-0 bg-transparent p-0 shadow-none">
-          <DialogTitle className="sr-only">Authentication</DialogTitle>
-          <div key={authFormType} className="auth-form-enter">
-            {authFormType === "login" && (
-              <LoginForm
-                onSuccess={handleAuthSuccess}
-                onShowSignup={() => setAuthFormType("signup")}
-                onShowForgot={() => setAuthFormType("forgot")}
-              />
-            )}
-            {authFormType === "signup" && (
-              <SignupForm
-                onSuccess={handleAuthSuccess}
-                onToggleForm={() => setAuthFormType("login")}
-              />
-            )}
-            {authFormType === "forgot" && (
-              <ForgotPasswordForm
-                onSuccess={() => setAuthFormType("login")}
-                onToggleForm={() => setAuthFormType("login")}
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </nav>
+        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+          <DialogContent className="w-[94vw] max-w-md border-0 bg-transparent p-0 shadow-none">
+            <DialogTitle className="sr-only">Authentication</DialogTitle>
+            <div key={authFormType} className="auth-form-enter">
+              {authFormType === "login" && (
+                <LoginForm
+                  onSuccess={handleAuthSuccess}
+                  onShowSignup={() => setAuthFormType("signup")}
+                  onShowForgot={() => setAuthFormType("forgot")}
+                />
+              )}
+              {authFormType === "signup" && (
+                <SignupForm
+                  onSuccess={handleAuthSuccess}
+                  onToggleForm={() => setAuthFormType("login")}
+                />
+              )}
+              {authFormType === "forgot" && (
+                <ForgotPasswordForm
+                  onSuccess={() => setAuthFormType("login")}
+                  onToggleForm={() => setAuthFormType("login")}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </nav>
+    </>
   );
 };
 
