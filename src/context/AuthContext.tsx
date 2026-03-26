@@ -11,10 +11,20 @@ import {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+function loadUserFromStorage(): AuthUser | null {
+  try {
+    const saved = localStorage.getItem("user");
+    return saved ? (JSON.parse(saved) as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
 
-  // Restore auth state from JWT and fallback stored user data.
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<AuthUser | null>(loadUserFromStorage);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+
+  // Verify token in background and refresh stored user data.
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
 
@@ -37,13 +47,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (error) {
-        console.error("Failed to load user from localStorage", error);
-      }
+    // No token — clear any stale user data
+    if (!token && localStorage.getItem("user")) {
+      localStorage.removeItem("user");
+      setUser(null);
     }
   }, []);
 
@@ -90,8 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore network/logout errors and clear local state anyway.
     });
     setUser(null);
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user");
+    localStorage.clear();
   };
 
   return (
@@ -99,6 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         isLoggedIn: !!user,
+        isAuthLoading,
         login,
         signup,
         verifySignupToken,

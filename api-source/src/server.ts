@@ -22,6 +22,23 @@ const startServer = async () => {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    const [cartColumnRows] = await db.query(
+        `SELECT 1 AS present
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = ?
+           AND TABLE_NAME = 'users'
+           AND COLUMN_NAME = 'cart_items_json'
+         LIMIT 1`,
+        [env.dbName]
+    );
+
+    if ((cartColumnRows as Array<{ present: number }>).length === 0) {
+        await db.execute(`
+            ALTER TABLE users
+            ADD COLUMN cart_items_json JSON NULL
+        `);
+    }
+
     app.listen(env.port, () => {
         console.log(`API server running on http://localhost:${env.port}`);
     });

@@ -56,6 +56,7 @@ const ProductsPage = () => {
                                     tag={product.tag}
                                     price={product.price}
                                     image={product.image}
+                                    cartLimit={product.cartLimit}
                                 />
                             </ScrollReveal>
                         ))}

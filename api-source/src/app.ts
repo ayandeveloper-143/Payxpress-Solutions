@@ -3,12 +3,15 @@ import express from "express";
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware.js";
 import authRouter from "./routes/auth.routes.js";
+import cartRouter from "./routes/cart.routes.js";
 import contactRouter from "./routes/contact.routes.js";
 import healthRouter from "./routes/health.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
 
 const app = express();
+
+app.set("trust proxy", 1);
 
 app.use(
     cors({
@@ -22,6 +25,7 @@ app.use("/api", productRouter);
 app.use("/api", contactRouter);
 app.use("/api", paymentRouter);
 app.use("/api", authRouter);
+app.use("/api", cartRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

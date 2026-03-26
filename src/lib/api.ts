@@ -1,4 +1,5 @@
 import type { Product } from "@/data/products";
+import type { CartItem } from "@/types/cart";
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
 
@@ -139,6 +140,19 @@ export interface LogoutResponse {
     message: string;
 }
 
+export interface CartResponse {
+    cart: CartItem[];
+}
+
+export interface SaveCartPayload {
+    cart: CartItem[];
+}
+
+export interface SaveCartResponse {
+    message: string;
+    cart: CartItem[];
+}
+
 export const fetchProducts = () => request<ProductsResponse>("/products");
 
 export const fetchProductBySlug = (slug: string) =>
@@ -217,4 +231,20 @@ export const logoutUser = () =>
     request<LogoutResponse>("/auth/logout", {
         method: "POST",
         requiresAuth: true,
+    });
+
+export const fetchUserCart = () =>
+    request<CartResponse>("/cart", {
+        method: "GET",
+        requiresAuth: true,
+    });
+
+export const saveUserCart = (payload: SaveCartPayload) =>
+    request<SaveCartResponse>("/cart", {
+        method: "PUT",
+        requiresAuth: true,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
     });

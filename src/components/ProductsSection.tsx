@@ -31,6 +31,7 @@ const ProductsSection = () => {
                 tag={p.tag}
                 price={p.price}
                 image={p.image}
+                cartLimit={p.cartLimit}
               />
             </ScrollReveal>
           ))}

@@ -13,6 +13,7 @@ export interface ProductRecord extends RowDataPacket {
     full_description: string;
     screenshots: string[] | string;
     features: string[] | string;
+    cart_limit: number;
 }
 
 export interface ProductResponse {
@@ -28,4 +29,5 @@ export interface ProductResponse {
     fullDescription: string;
     screenshots: string[];
     features: string[];
+    cartLimit: number;
 }

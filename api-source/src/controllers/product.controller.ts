@@ -28,11 +28,12 @@ const mapProduct = (product: ProductRecord): ProductResponse => ({
     fullDescription: product.full_description,
     screenshots: parseJsonArray(product.screenshots),
     features: parseJsonArray(product.features),
+    cartLimit: product.cart_limit,
 });
 
 export const getProducts = async (_request: Request, response: Response) => {
     const [rows] = await db.query<ProductRecord[]>(
-        `SELECT id, slug, title, description, tag, price_label, image, overview, short_note, full_description, screenshots, features
+        `SELECT id, slug, title, description, tag, price_label, image, overview, short_note, full_description, screenshots, features, cart_limit
      FROM products
      WHERE is_active = 1
      ORDER BY sort_order ASC, id DESC`
@@ -44,7 +45,7 @@ export const getProducts = async (_request: Request, response: Response) => {
 export const getProductBySlug = async (request: Request, response: Response) => {
     const { slug } = request.params;
     const [rows] = await db.query<ProductRecord[]>(
-        `SELECT id, slug, title, description, tag, price_label, image, overview, short_note, full_description, screenshots, features
+        `SELECT id, slug, title, description, tag, price_label, image, overview, short_note, full_description, screenshots, features, cart_limit
      FROM products
      WHERE slug = ? AND is_active = 1
      LIMIT 1`,

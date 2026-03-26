@@ -10,6 +10,7 @@ export interface Product {
     fullDescription: string;
     screenshots: string[];
     features: string[];
+    cartLimit: number;
 }
 
 export const products: Product[] = [
@@ -37,6 +38,7 @@ export const products: Product[] = [
             "Swap, staking, send, receive, and transaction flow screens",
             "Clean component system for easy Android Studio customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "1-vs-1-quiz-app-ui-design-kit",
@@ -62,6 +64,7 @@ export const products: Product[] = [
             "Leaderboard, rewards, and win-loss summary layouts",
             "Android-ready UI kit structure for quick product customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "restaurant-app-ui-design-kit",
@@ -87,6 +90,7 @@ export const products: Product[] = [
             "Table booking, offers, and order tracking interfaces",
             "Android-ready UI kit structure for quick restaurant app customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "coursee-course-app-ui-design-kit",
@@ -112,6 +116,7 @@ export const products: Product[] = [
             "Instructor profile, saved courses, and certificate views",
             "Android-ready UI kit structure for quick e-learning app customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "verseful-quote-shayari-app-android-studio-project",
@@ -137,6 +142,7 @@ export const products: Product[] = [
             "Reading detail pages with social share flow",
             "Android Studio project structure for quick content app customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "cabify-uber-like-cab-app-ui-android-studio",
@@ -162,6 +168,7 @@ export const products: Product[] = [
             "Ride tracking, payment, and trip history interfaces",
             "Android-ready UI kit structure for quick cab app customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "spectra-vr-app-ui-design-kit",
@@ -187,6 +194,7 @@ export const products: Product[] = [
             "Event booking, profile, and content preview interfaces",
             "Android-ready futuristic UI kit for quick VR app customization",
         ],
+        cartLimit: 5,
     },
     {
         slug: "aiflow-ai-app-ui-design-kit-android-studio",
@@ -212,6 +220,7 @@ export const products: Product[] = [
             "Subscription, notification, and profile interfaces",
             "Android-ready UI kit structure for quick AI app customization",
         ],
+        cartLimit: 5,
     },
 ];
 

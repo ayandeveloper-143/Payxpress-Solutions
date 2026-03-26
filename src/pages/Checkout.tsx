@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,17 @@ const checkoutSchema = z.object({
 type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 const Checkout = () => {
+  const navigate = useNavigate();
   const { cart, getTotalPrice } = useCart();
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate("/", { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
 
   // Always call hooks at the top level
   const form = useForm<CheckoutFormValues>({
@@ -41,6 +48,14 @@ const Checkout = () => {
       address: "",
     },
   });
+
+  // Sync form with user data when available
+  useEffect(() => {
+    if (user) {
+      form.setValue("name", user.name || "");
+      form.setValue("email", user.email || "");
+    }
+  }, [user, form]);
 
   // Early return after all hooks
   if (cart.length === 0) {
@@ -134,7 +149,7 @@ const Checkout = () => {
                           <FormItem>
                             <FormLabel>Full Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="John Doe" {...field} />
+                              <Input placeholder="John Doe" {...field} readOnly={isLoggedIn} className={isLoggedIn ? "bg-muted cursor-not-allowed" : ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -149,7 +164,7 @@ const Checkout = () => {
                             <FormItem>
                               <FormLabel>Email</FormLabel>
                               <FormControl>
-                                <Input placeholder="you@example.com" type="email" {...field} />
+                                <Input placeholder="you@example.com" type="email" {...field} readOnly={isLoggedIn} className={isLoggedIn ? "bg-muted cursor-not-allowed" : ""} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>

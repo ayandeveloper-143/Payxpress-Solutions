@@ -78,17 +78,31 @@ const ProductDetails = () => {
         .slice(0, 3);
 
     const addCurrentProductToCart = () => {
+        if (currentProductQuantity >= product.cartLimit) {
+            toast({
+                title: "Cart limit reached",
+                description: `You can add only ${product.cartLimit} unit${product.cartLimit > 1 ? "s" : ""} of ${product.title}.`,
+            });
+            return false;
+        }
+
         addToCart({
             slug: product.slug,
             title: product.title,
             price: product.price,
             image: product.image,
             quantity: 1,
+            cartLimit: product.cartLimit,
         });
+
+        return true;
     };
 
     const handleAddToCart = () => {
-        addCurrentProductToCart();
+        if (!addCurrentProductToCart()) {
+            return;
+        }
+
         toast({
             title: "Added to Cart",
             description: `${product.title} has been added to your cart`,
@@ -96,7 +110,15 @@ const ProductDetails = () => {
     };
 
     const handleBuyNow = () => {
-        addCurrentProductToCart();
+        if (currentProductQuantity >= product.cartLimit) {
+            setCheckoutSheetOpen(true);
+            return;
+        }
+
+        if (!addCurrentProductToCart()) {
+            return;
+        }
+
         setCheckoutSheetOpen(true);
         toast({
             title: "Ready for Checkout",
@@ -156,7 +178,7 @@ const ProductDetails = () => {
                             >
                                 Buy Now
                             </Button>
-                            <Button type="button" variant="outline" onClick={handleAddToCart} className="relative">
+                            <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= product.cartLimit}>
                                 Add to Cart
                                 {currentProductQuantity > 0 && (
                                     <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
@@ -168,6 +190,7 @@ const ProductDetails = () => {
                                 <Link to="/products">Back to Products</Link>
                             </Button>
                         </div>
+
                     </div>
                 </section>
                 <section className="space-y-5">
@@ -333,11 +356,11 @@ const ProductDetails = () => {
                                                         type="button"
                                                         className="h-full w-9 text-base font-semibold text-muted-foreground hover:text-foreground"
                                                         onClick={() => updateQuantity(item.slug, item.quantity + 1)}
+                                                        disabled={item.quantity >= item.cartLimit}
                                                     >
                                                         +
                                                     </button>
                                                 </div>
-
                                                 <button
                                                     type="button"
                                                     className="text-sm text-muted-foreground underline-offset-2 hover:underline"
