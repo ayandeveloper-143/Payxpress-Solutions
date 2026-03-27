@@ -49,13 +49,15 @@ const OrdersPage = () => {
           <div className="space-y-4">
             {orders.map(({ product, purchasedAt }, index) => (
               <ScrollReveal key={product.slug} delay={index * 70}>
-                <div className="group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex">
-                  <img
-                    src={product.image}
-                    alt={product.title}
-                    className="w-28 sm:w-44 h-28 sm:h-40 object-cover shrink-0"
-                    loading="lazy"
-                  />
+                <Link to={`/products/${product.slug}`} className="block group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex cursor-pointer">
+                  <div className="w-28 sm:w-44 shrink-0 self-stretch overflow-hidden">
+                    <img
+                      src={product.image}
+                      alt={product.title}
+                      className="w-full h-full object-cover object-center"
+                      loading="lazy"
+                    />
+                  </div>
                   <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
                     <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">
                       {product.tag}
@@ -67,13 +69,14 @@ const OrdersPage = () => {
                       <Button
                         size="sm"
                         className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <Download size={14} />
                         Download
                       </Button>
                     </div>
                   </div>
-                </div>
+                </Link>
               </ScrollReveal>
             ))}
           </div>
