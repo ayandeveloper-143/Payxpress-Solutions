@@ -23,7 +23,14 @@ const toBoolean = (value: string | undefined, fallback: boolean) => {
 
 export const env = {
     port: toNumber(process.env.PORT, 8846),
-    clientOrigin: process.env.CLIENT_ORIGIN ?? "https://payxpress-solutions.com",
+    clientOrigin: (process.env.CLIENT_ORIGIN ?? "https://payxpress-solutions.com")
+        .split(",")
+        .map((origin) => origin.trim())
+        .find((origin) => origin.length > 0) ?? "https://payxpress-solutions.com",
+    clientOrigins: (process.env.CLIENT_ORIGIN ?? "https://payxpress-solutions.com")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0),
     dbHost: process.env.DB_HOST ?? "127.0.0.1",
     dbPort: toNumber(process.env.DB_PORT, 3306),
     dbUser: process.env.DB_USER ?? "root",
