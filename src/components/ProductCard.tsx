@@ -57,6 +57,14 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
     });
   };
 
+  const handleDownload = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    toast({
+      title: "Download started",
+      description: `${title} is being prepared for download.`,
+    });
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
 
@@ -101,7 +109,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
               <Button
                 size="sm"
                 className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
-                onClick={(e) => e.stopPropagation()}
+                onClick={handleDownload}
               >
                 Download
               </Button>

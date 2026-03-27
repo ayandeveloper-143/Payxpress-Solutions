@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { Menu, X, ShoppingCart, LogOut, Search, UserCircle, Package } from "lucide-react";
+import { X, ShoppingCart, LogOut, Search, UserCircle, Package } from "lucide-react";
 import { products } from "@/data/products";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -387,13 +387,40 @@ const Navbar = () => {
                 <UserCircle size={20} />
               </button>
             )}
-            <button onClick={() => setOpen(!open)} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground">
-              {open ? <X size={24} /> : <Menu size={24} />}
+            <button
+              type="button"
+              onClick={() => setOpen((prev) => !prev)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground"
+              aria-label={open ? "Close menu" : "Open menu"}
+              aria-expanded={open}
+              aria-controls="mobile-nav-panel"
+            >
+              <span className="relative inline-flex h-5 w-5 items-center justify-center">
+                <span
+                  className={cn(
+                    "absolute h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out",
+                    open ? "translate-y-0 rotate-45" : "-translate-y-1.5 rotate-0",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "absolute h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out",
+                    open ? "opacity-0 scale-x-0" : "opacity-100 scale-x-100",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "absolute h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out",
+                    open ? "translate-y-0 -rotate-45" : "translate-y-1.5 rotate-0",
+                  )}
+                />
+              </span>
             </button>
           </div>
         </div>
 
         <div
+          id="mobile-nav-panel"
           className={cn(
             "md:hidden border-t bg-background px-4 overflow-hidden transition-all duration-300 ease-out",
             open ? "max-h-[520px] opacity-100 translate-y-0 pb-4 pt-2" : "max-h-0 opacity-0 -translate-y-1 pb-0 pt-0 pointer-events-none",

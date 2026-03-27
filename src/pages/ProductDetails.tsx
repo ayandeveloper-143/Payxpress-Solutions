@@ -128,6 +128,13 @@ const ProductDetails = () => {
         });
     };
 
+    const handleDownload = () => {
+        toast({
+            title: "Download started",
+            description: `${product.title} is being prepared for download.`,
+        });
+    };
+
     const preventCloseOnToastClick = (event: Event) => {
         const target = event.target as HTMLElement | null;
         if (!target) return;
@@ -180,6 +187,7 @@ const ProductDetails = () => {
                                 <Button
                                     type="button"
                                     className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                    onClick={handleDownload}
                                 >
                                     Download
                                 </Button>

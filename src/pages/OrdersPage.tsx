@@ -7,9 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePurchased } from "@/context/PurchasedContext";
 import { products } from "@/data/products";
+import { useToast } from "@/hooks/use-toast";
 
 const OrdersPage = () => {
   const { purchasedItems } = usePurchased();
+  const { toast } = useToast();
+
+  const handleDownload = (event: React.MouseEvent<HTMLButtonElement>, productTitle: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Download action stays independent from card navigation.
+    toast({
+      title: "Download started",
+      description: `${productTitle} is being prepared for download.`,
+    });
+  };
 
   const orders = purchasedItems
     .map((purchased) => {
@@ -69,7 +82,7 @@ const OrdersPage = () => {
                       <Button
                         size="sm"
                         className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(event) => handleDownload(event, product.title)}
                       >
                         Download
                       </Button>
