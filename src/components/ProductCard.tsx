@@ -106,22 +106,24 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
               </Button>
             ) : (
               <>
-                <div onClick={(event) => event.stopPropagation()}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
-                    onClick={handleAddToCart}
-                    disabled={isCartLimitReached}
-                  >
-                    <ShoppingCart size={16} />
-                    {cartQuantity > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                        {cartQuantity}
-                      </span>
-                    )}
-                  </Button>
-                </div>
+                {cartLimit > 1 && (
+                  <div onClick={(event) => event.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
+                      onClick={handleAddToCart}
+                      disabled={isCartLimitReached}
+                    >
+                      <ShoppingCart size={16} />
+                      {cartQuantity > 0 && (
+                        <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                          {cartQuantity}
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                )}
                 <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
                   <Link to={`/products/${slug}`}>Details</Link>
                 </Button>

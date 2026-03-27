@@ -33,7 +33,7 @@ const OrdersPage = () => {
           </p>
         </ScrollReveal>
 
-        {/* Orders Grid */}
+        {/* Orders List */}
         {orders.length === 0 ? (
           <ScrollReveal className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
@@ -46,28 +46,27 @@ const OrdersPage = () => {
             </Button>
           </ScrollReveal>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-4">
             {orders.map(({ product, purchasedAt }, index) => (
               <ScrollReveal key={product.slug} delay={index * 70}>
-                <div className="group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors">
+                <div className="group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex">
                   <img
                     src={product.image}
                     alt={product.title}
-                    className="w-full h-48 object-cover"
+                    className="w-28 sm:w-44 h-28 sm:h-40 object-cover shrink-0"
                     loading="lazy"
                   />
-                  <div className="p-5 space-y-3">
+                  <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
                     <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">
                       {product.tag}
                     </Badge>
-                    <h3 className="font-semibold text-lg">{product.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
-                    <p className="text-xs text-muted-foreground font-mono">ID: {product.slug}</p>
-                    <div className="flex items-center justify-between pt-2 gap-2">
-                      <span className="font-bold text-foreground">Purchased {purchasedAt}</span>
+                    <h3 className="font-semibold text-base sm:text-lg">{product.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{product.description}</p>
+                    <div className="flex items-center justify-between pt-1 gap-2">
+                      <span className="text-xs text-muted-foreground">Purchased {purchasedAt}</span>
                       <Button
                         size="sm"
-                        className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                        className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
                       >
                         <Download size={14} />
                         Download
