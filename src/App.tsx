@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { PurchasedProvider } from "@/context/PurchasedContext";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ProductDetails from "./pages/ProductDetails.tsx";
@@ -83,8 +84,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>
-            <AppRoutes />
-          </CartProvider>
+              <PurchasedProvider>
+                <AppRoutes />
+              </PurchasedProvider>
+            </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
