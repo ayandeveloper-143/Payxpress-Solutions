@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ApiRequestError } from "@/lib/api";
 import { UserPlus } from "lucide-react";
 
 const signupSchema = z
@@ -46,6 +47,7 @@ const SignupForm = ({ onToggleForm }: SignupFormProps) => {
     const onSubmit = async (values: SignupFormValues) => {
         try {
             setIsLoading(true);
+            form.clearErrors();
             const response = await signup(values.email, values.password, values.name);
 
             if (!response.requiresEmailVerification) {
@@ -58,6 +60,38 @@ const SignupForm = ({ onToggleForm }: SignupFormProps) => {
             });
             onToggleForm?.();
         } catch (error) {
+            if (error instanceof ApiRequestError) {
+                if (error.field === "email") {
+                    form.setError("email", { type: "server", message: error.message });
+                }
+
+                if (error.field === "name") {
+                    form.setError("name", { type: "server", message: error.message });
+                }
+
+                if (error.field === "password") {
+                    form.setError("password", { type: "server", message: error.message });
+                }
+
+                if (error.errors) {
+                    const nameError = error.errors.name?.[0];
+                    const emailError = error.errors.email?.[0];
+                    const passwordError = error.errors.password?.[0];
+
+                    if (nameError) {
+                        form.setError("name", { type: "server", message: nameError });
+                    }
+
+                    if (emailError) {
+                        form.setError("email", { type: "server", message: emailError });
+                    }
+
+                    if (passwordError) {
+                        form.setError("password", { type: "server", message: passwordError });
+                    }
+                }
+            }
+
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "Signup failed",
@@ -139,8 +173,13 @@ const SignupForm = ({ onToggleForm }: SignupFormProps) => {
                             )}
                         />
 
-                        <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
-                            {isLoading ? "Creating account..." : "Sign Up"}
+                        <Button
+                            type="submit"
+                            className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                            isLoading={isLoading}
+                            disabled={isLoading}
+                        >
+                            Sign Up
                         </Button>
                     </form>
                 </Form>

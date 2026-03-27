@@ -10,10 +10,22 @@ type RequestOptions = RequestInit & {
 
 export class ApiRequestError extends Error {
     status: number;
+    code?: string;
+    field?: string;
+    errors?: Record<string, string[]>;
 
-    constructor(message: string, status: number) {
-        super(message);
-        this.status = status;
+    constructor(params: {
+        message: string;
+        status: number;
+        code?: string;
+        field?: string;
+        errors?: Record<string, string[]>;
+    }) {
+        super(params.message);
+        this.status = params.status;
+        this.code = params.code;
+        this.field = params.field;
+        this.errors = params.errors;
     }
 }
 
@@ -33,7 +45,20 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
 
     if (!response.ok) {
         const message = typeof data.message === "string" ? data.message : "Request failed.";
-        throw new ApiRequestError(message, response.status);
+        const code = typeof data.code === "string" ? data.code : undefined;
+        const field = typeof data.field === "string" ? data.field : undefined;
+        const errors =
+            data.errors && typeof data.errors === "object"
+                ? (data.errors as Record<string, string[]>)
+                : undefined;
+
+        throw new ApiRequestError({
+            message,
+            status: response.status,
+            code,
+            field,
+            errors,
+        });
     }
 
     return data as T;

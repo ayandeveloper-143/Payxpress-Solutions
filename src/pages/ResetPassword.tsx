@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { KeyRound, CheckCircle2 } from "lucide-react";
-import { verifyForgotPassword } from "@/lib/api";
+import { ApiRequestError, verifyForgotPassword } from "@/lib/api";
 
 const resetPasswordSchema = z
   .object({
@@ -51,9 +51,37 @@ const ResetPassword = () => {
 
     try {
       setIsLoading(true);
+      form.clearErrors();
       await verifyForgotPassword({ token, newPassword: values.newPassword });
       setSuccess(true);
     } catch (error) {
+      if (error instanceof ApiRequestError) {
+        if (error.field === "newPassword" || error.field === "password") {
+          form.setError("newPassword", { type: "server", message: error.message });
+        }
+
+        if (error.field === "confirmPassword") {
+          form.setError("confirmPassword", { type: "server", message: error.message });
+        }
+
+        if (error.errors?.newPassword?.[0]) {
+          form.setError("newPassword", { type: "server", message: error.errors.newPassword[0] });
+        }
+
+        if (error.errors?.confirmPassword?.[0]) {
+          form.setError("confirmPassword", { type: "server", message: error.errors.confirmPassword[0] });
+        }
+
+        if (error.errors?.token?.[0]) {
+          toast({
+            title: "Invalid Link",
+            description: error.errors.token[0],
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to reset password",
@@ -140,9 +168,10 @@ const ResetPassword = () => {
                 <Button
                   type="submit"
                   className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                  isLoading={isLoading}
                   disabled={isLoading}
                 >
-                  {isLoading ? "Updating..." : "Reset Password"}
+                  Reset Password
                 </Button>
               </form>
             </Form>

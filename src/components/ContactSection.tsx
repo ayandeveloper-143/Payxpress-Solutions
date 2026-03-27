@@ -79,10 +79,11 @@ const ContactSection = () => {
             />
             <Button
               type="submit"
+              isLoading={isSubmitting}
               disabled={isSubmitting}
               className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all h-11 rounded-lg"
             >
-              {isSubmitting ? "Sending..." : "Send Message"}
+              Send Message
             </Button>
           </form>
         </ScrollReveal>

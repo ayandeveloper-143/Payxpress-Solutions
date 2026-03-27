@@ -221,9 +221,11 @@ export const signup = async (request: Request, response: Response) => {
         const parsed = signupSchema.safeParse(request.body);
 
         if (!parsed.success) {
+            const fieldErrors = parsed.error.flatten().fieldErrors;
             response.status(400).json({
-                message: "Invalid signup request.",
-                errors: parsed.error.flatten().fieldErrors,
+                message: "Please check the highlighted fields.",
+                code: "VALIDATION_ERROR",
+                errors: fieldErrors,
             });
             return;
         }
@@ -241,7 +243,11 @@ export const signup = async (request: Request, response: Response) => {
         const passwordHash = await bcrypt.hash(password, 10);
 
         if (existingUser?.is_verified) {
-            response.status(409).json({ message: "Email already registered." });
+            response.status(409).json({
+                message: "An account with this email already exists.",
+                code: "EMAIL_ALREADY_REGISTERED",
+                field: "email",
+            });
             return;
         }
 
@@ -275,7 +281,10 @@ export const signup = async (request: Request, response: Response) => {
         });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to signup." });
+        response.status(500).json({
+            message: "Unable to complete signup right now. Please try again.",
+            code: "SIGNUP_FAILED",
+        });
     }
 };
 
@@ -286,14 +295,22 @@ export const verifySignupLink = async (request: Request, response: Response) => 
         const token = queryToken ?? bodyToken;
 
         if (!token || token.length < 20) {
-            response.status(400).json({ message: "Invalid verification link." });
+            response.status(400).json({
+                message: "Verification token is invalid.",
+                code: "INVALID_TOKEN",
+                field: "token",
+            });
             return;
         }
 
         const tokenPayload = verifyActionToken(token);
 
         if (!tokenPayload || tokenPayload.purpose !== "signup") {
-            response.status(400).json({ message: "Verification link is invalid or expired." });
+            response.status(400).json({
+                message: "Verification link is invalid or expired.",
+                code: "INVALID_OR_EXPIRED_TOKEN",
+                field: "token",
+            });
             return;
         }
 
@@ -308,7 +325,11 @@ export const verifySignupLink = async (request: Request, response: Response) => 
         const user = (rows as UserRecord[])[0];
 
         if (!user) {
-            response.status(404).json({ message: "User not found." });
+            response.status(404).json({
+                message: "No account found with this email.",
+                code: "EMAIL_NOT_FOUND",
+                field: "email",
+            });
             return;
         }
 
@@ -330,7 +351,10 @@ export const verifySignupLink = async (request: Request, response: Response) => 
         });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to verify email." });
+        response.status(500).json({
+            message: "Unable to verify email right now. Please try again.",
+            code: "VERIFY_SIGNUP_FAILED",
+        });
     }
 };
 
@@ -339,9 +363,11 @@ export const login = async (request: Request, response: Response) => {
         const parsed = loginSchema.safeParse(request.body);
 
         if (!parsed.success) {
+            const fieldErrors = parsed.error.flatten().fieldErrors;
             response.status(400).json({
-                message: "Invalid login request.",
-                errors: parsed.error.flatten().fieldErrors,
+                message: "Please check the highlighted fields.",
+                code: "VALIDATION_ERROR",
+                errors: fieldErrors,
             });
             return;
         }
@@ -358,19 +384,31 @@ export const login = async (request: Request, response: Response) => {
         const user = (rows as UserRecord[])[0];
 
         if (!user) {
-            response.status(401).json({ message: "Invalid credentials." });
+            response.status(401).json({
+                message: "No account found with this email.",
+                code: "EMAIL_NOT_FOUND",
+                field: "email",
+            });
             return;
         }
 
         if (!user.is_verified) {
-            response.status(403).json({ message: "Please verify your email first, then login." });
+            response.status(403).json({
+                message: "No account found with this email.",
+                code: "EMAIL_NOT_FOUND",
+                field: "email",
+            });
             return;
         }
 
         const passwordMatched = await bcrypt.compare(password, user.password_hash);
 
         if (!passwordMatched) {
-            response.status(401).json({ message: "Invalid credentials." });
+            response.status(401).json({
+                message: "Incorrect password. Please try again.",
+                code: "INVALID_PASSWORD",
+                field: "password",
+            });
             return;
         }
 
@@ -406,7 +444,10 @@ export const login = async (request: Request, response: Response) => {
         });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to login." });
+        response.status(500).json({
+            message: "Unable to process login right now. Please try again.",
+            code: "LOGIN_FAILED",
+        });
     }
 };
 
@@ -415,9 +456,11 @@ export const startForgotPassword = async (request: Request, response: Response) 
         const parsed = forgotPasswordStartSchema.safeParse(request.body);
 
         if (!parsed.success) {
+            const fieldErrors = parsed.error.flatten().fieldErrors;
             response.status(400).json({
-                message: "Invalid forgot password request.",
-                errors: parsed.error.flatten().fieldErrors,
+                message: "Please check the highlighted fields.",
+                code: "VALIDATION_ERROR",
+                errors: fieldErrors,
             });
             return;
         }
@@ -449,7 +492,10 @@ export const startForgotPassword = async (request: Request, response: Response) 
         response.status(200).json({ message: "Password reset link sent to your email." });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to start forgot password." });
+        response.status(500).json({
+            message: "Unable to process forgot password right now. Please try again.",
+            code: "FORGOT_PASSWORD_START_FAILED",
+        });
     }
 };
 
@@ -458,9 +504,11 @@ export const resetPasswordWithToken = async (request: Request, response: Respons
         const parsed = forgotPasswordResetSchema.safeParse(request.body);
 
         if (!parsed.success) {
+            const fieldErrors = parsed.error.flatten().fieldErrors;
             response.status(400).json({
-                message: "Invalid reset request.",
-                errors: parsed.error.flatten().fieldErrors,
+                message: "Please check the highlighted fields.",
+                code: "VALIDATION_ERROR",
+                errors: fieldErrors,
             });
             return;
         }
@@ -469,7 +517,11 @@ export const resetPasswordWithToken = async (request: Request, response: Respons
         const tokenPayload = verifyActionToken(token);
 
         if (!tokenPayload || tokenPayload.purpose !== "reset") {
-            response.status(400).json({ message: "Invalid or expired reset link." });
+            response.status(400).json({
+                message: "Reset token is invalid or expired.",
+                code: "INVALID_OR_EXPIRED_TOKEN",
+                field: "token",
+            });
             return;
         }
 
@@ -484,13 +536,21 @@ export const resetPasswordWithToken = async (request: Request, response: Respons
         const user = (rows as UserRecord[])[0];
 
         if (!user) {
-            response.status(404).json({ message: "User not found." });
+            response.status(404).json({
+                message: "No account found with this email.",
+                code: "EMAIL_NOT_FOUND",
+                field: "email",
+            });
             return;
         }
 
         // Reset tokens become one-time because password hash changes after first successful use.
         if (!tokenPayload.passwordHash || tokenPayload.passwordHash !== user.password_hash) {
-            response.status(400).json({ message: "Invalid or expired reset link." });
+            response.status(400).json({
+                message: "Reset token is invalid or expired.",
+                code: "INVALID_OR_EXPIRED_TOKEN",
+                field: "token",
+            });
             return;
         }
 
@@ -500,7 +560,10 @@ export const resetPasswordWithToken = async (request: Request, response: Respons
         response.status(200).json({ message: "Password updated successfully." });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to reset password." });
+        response.status(500).json({
+            message: "Unable to reset password right now. Please try again.",
+            code: "RESET_PASSWORD_FAILED",
+        });
     }
 };
 
@@ -509,21 +572,33 @@ export const getCurrentUser = async (request: Request, response: Response) => {
         const token = getBearerToken(request);
 
         if (!token) {
-            response.status(401).json({ message: "Missing access token." });
+            response.status(401).json({
+                message: "Missing access token.",
+                code: "MISSING_ACCESS_TOKEN",
+                field: "token",
+            });
             return;
         }
 
         const tokenPayload = verifyAccessToken(token);
 
         if (!tokenPayload) {
-            response.status(401).json({ message: "Invalid or expired access token." });
+            response.status(401).json({
+                message: "Invalid or expired access token.",
+                code: "INVALID_OR_EXPIRED_ACCESS_TOKEN",
+                field: "token",
+            });
             return;
         }
 
         const activeToken = await isAccessTokenActive({ token, userUuid: tokenPayload.sub });
 
         if (!activeToken) {
-            response.status(401).json({ message: "Session expired or logged out." });
+            response.status(401).json({
+                message: "Session expired or logged out.",
+                code: "SESSION_INACTIVE",
+                field: "token",
+            });
             return;
         }
 
@@ -538,7 +613,10 @@ export const getCurrentUser = async (request: Request, response: Response) => {
         const user = (rows as UserRecord[])[0];
 
         if (!user || !user.is_verified) {
-            response.status(401).json({ message: "User no longer authorized." });
+            response.status(401).json({
+                message: "User no longer authorized.",
+                code: "USER_NOT_AUTHORIZED",
+            });
             return;
         }
 
@@ -551,7 +629,10 @@ export const getCurrentUser = async (request: Request, response: Response) => {
         });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to fetch current user." });
+        response.status(500).json({
+            message: "Unable to fetch current user right now. Please try again.",
+            code: "GET_CURRENT_USER_FAILED",
+        });
     }
 };
 
@@ -560,14 +641,22 @@ export const logout = async (request: Request, response: Response) => {
         const token = getBearerToken(request);
 
         if (!token) {
-            response.status(401).json({ message: "Missing access token." });
+            response.status(401).json({
+                message: "Missing access token.",
+                code: "MISSING_ACCESS_TOKEN",
+                field: "token",
+            });
             return;
         }
 
         const tokenPayload = verifyAccessToken(token);
 
         if (!tokenPayload) {
-            response.status(401).json({ message: "Invalid or expired access token." });
+            response.status(401).json({
+                message: "Invalid or expired access token.",
+                code: "INVALID_OR_EXPIRED_ACCESS_TOKEN",
+                field: "token",
+            });
             return;
         }
 
@@ -576,6 +665,9 @@ export const logout = async (request: Request, response: Response) => {
         response.status(200).json({ message: "Logout successful." });
     } catch (error) {
         console.error(error);
-        response.status(500).json({ message: "Failed to logout." });
+        response.status(500).json({
+            message: "Unable to logout right now. Please try again.",
+            code: "LOGOUT_FAILED",
+        });
     }
 };

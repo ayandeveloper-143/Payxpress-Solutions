@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ApiRequestError } from "@/lib/api";
 import { Lock } from "lucide-react";
 
 const loginSchema = z.object({
@@ -39,6 +40,7 @@ const LoginForm = ({ onSuccess, onToggleForm, onShowSignup, onShowForgot }: Logi
   const onSubmit = async (values: LoginFormValues) => {
     try {
       setIsLoading(true);
+      form.clearErrors();
       await login(values.email, values.password);
       toast({
         title: "Success",
@@ -46,11 +48,46 @@ const LoginForm = ({ onSuccess, onToggleForm, onShowSignup, onShowForgot }: Logi
       });
       onSuccess?.();
     } catch (error) {
+      let hasFieldError = false;
+
+      if (error instanceof ApiRequestError) {
+        if (error.field === "email") {
+          form.setError("email", { type: "server", message: error.message });
+          hasFieldError = true;
+        }
+
+        if (error.field === "password") {
+          form.setError("password", { type: "server", message: error.message });
+          hasFieldError = true;
+        }
+
+        if (error.errors) {
+          const emailError = error.errors.email?.[0];
+          const passwordError = error.errors.password?.[0];
+
+          if (emailError) {
+            form.setError("email", { type: "server", message: emailError });
+          }
+
+          if (passwordError) {
+            form.setError("password", { type: "server", message: passwordError });
+          }
+
+          if (emailError || passwordError) {
+            hasFieldError = true;
+          }
+        }
+      }
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Login failed",
         variant: "destructive",
       });
+
+      if (hasFieldError) {
+        return;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -99,8 +136,13 @@ const LoginForm = ({ onSuccess, onToggleForm, onShowSignup, onShowForgot }: Logi
               )}
             />
 
-            <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
+            <Button
+              type="submit"
+              className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+              isLoading={isLoading}
+              disabled={isLoading}
+            >
+              Login
             </Button>
           </form>
         </Form>

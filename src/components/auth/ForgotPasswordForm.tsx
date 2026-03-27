@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ApiRequestError } from "@/lib/api";
 import { KeyRound } from "lucide-react";
 
 const forgotPasswordSchema = z.object({
@@ -35,6 +36,7 @@ const ForgotPasswordForm = ({ onToggleForm }: ForgotPasswordFormProps) => {
   const onSubmit = async (values: ForgotPasswordFormValues) => {
     try {
       setIsLoading(true);
+      form.clearErrors();
       await forgotPassword(values.email);
       toast({
         title: "Reset Link Sent",
@@ -42,6 +44,16 @@ const ForgotPasswordForm = ({ onToggleForm }: ForgotPasswordFormProps) => {
       });
       form.reset();
     } catch (error) {
+      if (error instanceof ApiRequestError) {
+        if (error.field === "email") {
+          form.setError("email", { type: "server", message: error.message });
+        }
+
+        if (error.errors?.email?.[0]) {
+          form.setError("email", { type: "server", message: error.errors.email[0] });
+        }
+      }
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send reset email",
@@ -83,8 +95,13 @@ const ForgotPasswordForm = ({ onToggleForm }: ForgotPasswordFormProps) => {
               )}
             />
 
-            <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
-              {isLoading ? "Sending..." : "Send Reset Link"}
+            <Button
+              type="submit"
+              className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+              isLoading={isLoading}
+              disabled={isLoading}
+            >
+              Send Reset Link
             </Button>
           </form>
         </Form>

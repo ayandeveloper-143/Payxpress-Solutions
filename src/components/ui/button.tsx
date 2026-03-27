@@ -34,12 +34,45 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  isLoading?: boolean;
+  loadingIndicator?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, isLoading = false, loadingIndicator, children, disabled, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+
+    const spinner = (
+      <span
+        className="inline-block size-[1em] animate-spin rounded-full border-2 border-current border-r-transparent align-middle"
+        aria-hidden="true"
+      />
+    );
+
+    if (asChild) {
+      return (
+        <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+          {children}
+        </Comp>
+      );
+    }
+
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }), isLoading && "relative")}
+        ref={ref}
+        disabled={disabled || isLoading}
+        aria-busy={isLoading}
+        {...props}
+      >
+        <span className={cn("inline-flex items-center", isLoading && "opacity-0")}>{children}</span>
+        {isLoading ? (
+          <span className="absolute inset-0 inline-flex items-center justify-center">
+            {loadingIndicator ?? spinner}
+          </span>
+        ) : null}
+      </Comp>
+    );
   },
 );
 Button.displayName = "Button";

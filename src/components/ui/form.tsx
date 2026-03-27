@@ -113,14 +113,23 @@ const FormMessage = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<
     const { error, formMessageId } = useFormField();
     const body = error ? String(error?.message) : children;
 
-    if (!body) {
-      return null;
-    }
-
     return (
-      <p ref={ref} id={formMessageId} className={cn("text-sm font-medium text-destructive", className)} {...props}>
-        {body}
-      </p>
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200 ease-out",
+          body ? "max-h-16 opacity-100" : "max-h-0 opacity-0",
+        )}
+        aria-live="polite"
+      >
+        <p
+          ref={ref}
+          id={formMessageId}
+          className={cn("pt-0.5 text-sm font-medium text-destructive", className)}
+          {...props}
+        >
+          {body ?? ""}
+        </p>
+      </div>
     );
   },
 );
