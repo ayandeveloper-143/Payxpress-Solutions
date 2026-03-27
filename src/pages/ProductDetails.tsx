@@ -11,11 +11,12 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
+import { usePurchased } from "@/context/PurchasedContext";
 import { getProductBySlug, products as fallbackProducts } from "@/data/products";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProductBySlug, fetchProducts } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -42,6 +43,7 @@ const ProductDetails = () => {
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
     const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
     const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice } = useCart();
+    const { isPurchased } = usePurchased();
     const { toast } = useToast();
 
     if (!product && (productQuery.isLoading || productQuery.isFetching)) {
@@ -136,6 +138,7 @@ const ProductDetails = () => {
     };
 
     const currentProductQuantity = cart.find((item) => item.slug === product.slug)?.quantity ?? 0;
+    const purchased = isPurchased(product.slug);
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
@@ -171,21 +174,35 @@ const ProductDetails = () => {
                         </p>
 
                         <div className="flex flex-wrap gap-3 pt-3">
-                            <Button
-                                type="button"
-                                className="bg-accent text-accent-foreground hover:bg-accent/90"
-                                onClick={handleBuyNow}
-                            >
-                                Buy Now
-                            </Button>
-                            <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= product.cartLimit}>
-                                Add to Cart
-                                {currentProductQuantity > 0 && (
-                                    <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                                        {currentProductQuantity}
-                                    </span>
-                                )}
-                            </Button>
+                            {purchased ? (
+                                <Button
+                                    type="button"
+                                    className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                                >
+                                    <Download size={16} />
+                                    Download
+                                </Button>
+                            ) : (
+                                <>
+                                    <Button
+                                        type="button"
+                                        className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                        onClick={handleBuyNow}
+                                    >
+                                        Buy Now
+                                    </Button>
+                                    {product.cartLimit > 1 && (
+                                        <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= product.cartLimit}>
+                                            Add to Cart
+                                            {currentProductQuantity > 0 && (
+                                                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                                                    {currentProductQuantity}
+                                                </span>
+                                            )}
+                                        </Button>
+                                    )}
+                                </>
+                            )}
                             <Button asChild variant="outline">
                                 <Link to="/products">Back to Products</Link>
                             </Button>
