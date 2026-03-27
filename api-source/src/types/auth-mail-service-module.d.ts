@@ -6,4 +6,13 @@ declare module "../services/auth-mail.service.js" {
         verificationLink: string
     ) => Promise<void>;
     export const sendPasswordResetEmail: (to: string, resetLink: string) => Promise<void>;
+    export const sendLoginAlertEmail: (params: {
+        to: string;
+        name: string;
+        deviceInfo: string;
+        browserInfo: string;
+        ipAddress: string;
+        loginDateTime: string;
+        secureAccountLink?: string;
+    }) => Promise<void>;
 }

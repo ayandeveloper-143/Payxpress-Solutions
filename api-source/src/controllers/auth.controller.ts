@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../config/db.js";
 import { env } from "../config/env.js";
 import {
+    sendLoginAlertEmail,
     sendPasswordResetEmail,
     sendSignupVerificationEmail,
 } from "../services/auth-mail.service.js";
@@ -197,6 +198,24 @@ const verifyAccessToken = (token: string): AccessTokenPayload | null => {
     }
 };
 
+const parseBrowserInfo = (userAgent: string) => {
+    if (/Edg\//i.test(userAgent)) return "Microsoft Edge";
+    if (/OPR\//i.test(userAgent) || /Opera/i.test(userAgent)) return "Opera";
+    if (/Chrome\//i.test(userAgent) && !/Edg\//i.test(userAgent)) return "Google Chrome";
+    if (/Firefox\//i.test(userAgent)) return "Mozilla Firefox";
+    if (/Safari\//i.test(userAgent) && !/Chrome\//i.test(userAgent)) return "Safari";
+    return "Unknown Browser";
+};
+
+const parseDeviceInfo = (userAgent: string) => {
+    if (/iPhone|iPad|iPod/i.test(userAgent)) return "iOS Device";
+    if (/Android/i.test(userAgent)) return "Android Device";
+    if (/Windows/i.test(userAgent)) return "Windows Device";
+    if (/Macintosh|Mac OS X/i.test(userAgent)) return "macOS Device";
+    if (/Linux/i.test(userAgent)) return "Linux Device";
+    return "Unknown Device";
+};
+
 export const signup = async (request: Request, response: Response) => {
     try {
         const parsed = signupSchema.safeParse(request.body);
@@ -357,6 +376,24 @@ export const login = async (request: Request, response: Response) => {
 
         const accessToken = signAccessToken({ uuid: user.uuid, email: user.email, name: user.name });
         await persistAccessToken({ token: accessToken, userUuid: user.uuid, request });
+
+        const userAgent = request.get("user-agent") ?? "Unknown";
+        const browserInfo = parseBrowserInfo(userAgent);
+        const deviceInfo = parseDeviceInfo(userAgent);
+        const ipAddress = request.ip ?? "Unknown";
+        const loginDateTime = new Date().toUTCString();
+
+        await sendLoginAlertEmail({
+            to: user.email,
+            name: user.name,
+            deviceInfo,
+            browserInfo,
+            ipAddress,
+            loginDateTime,
+            secureAccountLink: `${env.clientOrigin}/auth`,
+        }).catch((error) => {
+            console.error("Failed to send login alert email", error);
+        });
 
         response.status(200).json({
             message: "Login successful.",
