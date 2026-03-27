@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, CreditCard, Download, FileText, Package, ShoppingBag } from "lucide-react";
+import { Archive, Calendar, CreditCard, Download, Package, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -119,7 +119,7 @@ const OrdersPage = () => {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">My Orders</p>
           <h1 className="text-3xl sm:text-4xl font-bold leading-tight">Order History</h1>
           <p className="text-muted-foreground text-sm">
-            View all your purchases, download products and invoices.
+            View all your purchases, download products and projects.
           </p>
         </ScrollReveal>
 
@@ -138,8 +138,8 @@ const OrdersPage = () => {
                 onClick={() => setFilter(opt.value)}
                 className={`rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
                   filter === opt.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:border-primary hover:text-primary bg-background"
+                    ? "bg-accent text-accent-foreground border-accent"
+                    : "border-border text-muted-foreground hover:border-accent hover:text-accent bg-background"
                 }`}
               >
                 {opt.label}
@@ -156,7 +156,7 @@ const OrdersPage = () => {
             </div>
             <p className="text-base font-semibold text-foreground">No orders found</p>
             <p className="text-sm text-muted-foreground">You haven&apos;t placed any orders yet.</p>
-            <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2">
+            <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90 mt-2">
               <Link to="/products">Browse Products</Link>
             </Button>
           </ScrollReveal>
@@ -228,10 +228,11 @@ const OrdersPage = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 text-xs gap-1.5 border-primary text-primary hover:bg-primary/10"
+                          className="h-8 text-xs gap-1.5 border-accent text-accent hover:bg-accent/10"
+                          disabled={!order.hasDownload}
                         >
-                          <FileText size={13} />
-                          Download Invoice
+                          <Archive size={13} />
+                          Download Project
                         </Button>
                       </div>
                     </div>
