@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
+import { usePurchased } from "@/context/PurchasedContext";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart } from "lucide-react";
+import { Download, ShoppingCart } from "lucide-react";
 
 interface ProductCardProps {
   slug: string;
@@ -19,9 +20,11 @@ interface ProductCardProps {
 const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }: ProductCardProps) => {
   const navigate = useNavigate();
   const { cart, addToCart } = useCart();
+  const { isPurchased } = usePurchased();
   const { toast } = useToast();
   const cartQuantity = cart.find((item) => item.slug === slug)?.quantity ?? 0;
   const isCartLimitReached = cartQuantity >= cartLimit;
+  const purchased = isPurchased(slug);
 
   const openProduct = () => {
     navigate(`/products/${slug}`);
@@ -92,25 +95,38 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
         <div className="flex items-center justify-between pt-2 gap-2">
           <span className="font-bold text-foreground">{price}</span>
           <div className="flex gap-2">
-            <div onClick={(event) => event.stopPropagation()}>
+            {purchased ? (
               <Button
                 size="sm"
-                variant="outline"
-                className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
-                onClick={handleAddToCart}
-                disabled={isCartLimitReached}
+                className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                onClick={(e) => e.stopPropagation()}
               >
-                <ShoppingCart size={16} />
-                {cartQuantity > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                    {cartQuantity}
-                  </span>
-                )}
+                <Download size={14} />
+                Download
               </Button>
-            </div>
-            <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-              <Link to={`/products/${slug}`}>Details</Link>
-            </Button>
+            ) : (
+              <>
+                <div onClick={(event) => event.stopPropagation()}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
+                    onClick={handleAddToCart}
+                    disabled={isCartLimitReached}
+                  >
+                    <ShoppingCart size={16} />
+                    {cartQuantity > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                        {cartQuantity}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
+                  <Link to={`/products/${slug}`}>Details</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
