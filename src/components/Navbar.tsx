@@ -415,9 +415,8 @@ const Navbar = () => {
               <Link
                 to="/orders"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="block w-full text-left py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
               >
-                <Package size={16} />
                 Order History
               </Link>
             )}
