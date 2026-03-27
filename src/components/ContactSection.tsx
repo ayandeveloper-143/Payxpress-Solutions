@@ -53,12 +53,13 @@ const ContactSection = () => {
         </ScrollReveal>
 
         <ScrollReveal delay={100}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="border rounded-2xl p-6 sm:p-8 bg-card space-y-4">
             <Input
               placeholder="Your name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               maxLength={100}
+              className="rounded-lg"
             />
             <Input
               type="email"
@@ -66,6 +67,7 @@ const ContactSection = () => {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               maxLength={255}
+              className="rounded-lg"
             />
             <Textarea
               placeholder="Your message"
@@ -73,11 +75,12 @@ const ContactSection = () => {
               onChange={(e) => setForm({ ...form, message: e.target.value })}
               rows={5}
               maxLength={1000}
+              className="rounded-lg"
             />
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all h-11"
+              className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all h-11 rounded-lg"
             >
               {isSubmitting ? "Sending..." : "Send Message"}
             </Button>

@@ -15,26 +15,49 @@ const ContactUs = () => (
                 </h1>
             </ScrollReveal>
 
-            <ScrollReveal className="border rounded-2xl p-6 sm:p-8 bg-card space-y-5 max-w-3xl">
-                <div>
-                    <p className="text-sm uppercase tracking-wider text-muted-foreground">Email</p>
-                    <a href="mailto:hello@payxpress-solutions.com" className="text-lg font-semibold text-accent hover:underline">
-                        hello@payxpress-solutions.com
-                    </a>
-                </div>
+            <section className="grid lg:grid-cols-2 gap-6 items-stretch">
+                <ScrollReveal className="border rounded-2xl p-6 sm:p-8 bg-card space-y-5">
+                    <div>
+                        <p className="text-sm uppercase tracking-wider text-muted-foreground">Email</p>
+                        <a href="mailto:hello@payxpress-solutions.com" className="text-lg font-semibold text-accent hover:underline">
+                            hello@payxpress-solutions.com
+                        </a>
+                    </div>
 
-                <div>
-                    <p className="text-sm uppercase tracking-wider text-muted-foreground">Sales</p>
-                    <a href="mailto:sales@payxpress-solutions.com" className="text-lg font-semibold text-accent hover:underline">
-                        sales@payxpress-solutions.com
-                    </a>
-                </div>
+                    <div>
+                        <p className="text-sm uppercase tracking-wider text-muted-foreground">Phone</p>
+                        <a href="tel:+918509517215" className="text-lg font-semibold text-accent hover:underline">
+                            +91 8509517215
+                        </a>
+                    </div>
 
-                <div>
-                    <p className="text-sm uppercase tracking-wider text-muted-foreground">Working Hours</p>
-                    <p className="text-muted-foreground">Monday to Saturday, 10:00 AM to 7:00 PM</p>
-                </div>
-            </ScrollReveal>
+                    <div>
+                        <p className="text-sm uppercase tracking-wider text-muted-foreground">Sales</p>
+                        <a href="mailto:sales@payxpress-solutions.com" className="text-lg font-semibold text-accent hover:underline">
+                            sales@payxpress-solutions.com
+                        </a>
+                    </div>
+
+                    <div>
+                        <p className="text-sm uppercase tracking-wider text-muted-foreground">Working Hours</p>
+                        <p className="text-muted-foreground">Monday to Saturday, 10:00 AM to 7:00 PM</p>
+                    </div>
+                </ScrollReveal>
+
+                <ScrollReveal className="border rounded-2xl overflow-hidden bg-card flex flex-col" delay={80}>
+                    <div className="w-full flex-1">
+                        <iframe
+                            width="100%"
+                            height="100%"
+                            style={{ border: 0, display: "block" }}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src="https://www.google.com/maps/embed/v1/place?q=PayXpress%20Solutions%2C%20Bareya%2C%20West%20Bengal%20713512&key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8"
+                        ></iframe>
+                    </div>
+                </ScrollReveal>
+            </section>
 
             <section className="grid lg:grid-cols-2 gap-6">
                 <ScrollReveal className="border rounded-2xl p-6 sm:p-8 bg-muted/40 space-y-3">
