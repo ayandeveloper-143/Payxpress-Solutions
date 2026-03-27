@@ -374,7 +374,7 @@ const Navbar = () => {
             <button
               type="button"
               onClick={() => setSearchSheetOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground"
             >
               <Search size={20} />
             </button>
@@ -382,7 +382,7 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={() => navigate("/account")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground"
               >
                 <UserCircle size={20} />
               </button>
