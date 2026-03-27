@@ -1,4 +1,4 @@
-import { Calendar, Download, Package, ShoppingBag } from "lucide-react";
+import { Download, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -10,6 +10,8 @@ interface Order {
   id: number;
   productName: string;
   productTag: string;
+  description: string;
+  image: string;
   date: string;
   hasDownload: boolean;
 }
@@ -19,6 +21,8 @@ const mockOrders: Order[] = [
     id: 1,
     productName: "Multi-Vendor E-Commerce Platform",
     productTag: "E-Commerce",
+    description: "Full-featured multi-vendor marketplace with vendor dashboards, product listings, and order management.",
+    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
     date: "12 Jan 2024",
     hasDownload: true,
   },
@@ -26,6 +30,8 @@ const mockOrders: Order[] = [
     id: 2,
     productName: "CRM & Client Portal System",
     productTag: "CRM",
+    description: "Manage leads, clients, and pipelines with a clean portal for customer communication and tracking.",
+    image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
     date: "28 Feb 2024",
     hasDownload: true,
   },
@@ -33,6 +39,8 @@ const mockOrders: Order[] = [
     id: 3,
     productName: "Inventory & Billing Management",
     productTag: "ERP",
+    description: "End-to-end inventory tracking, invoicing, and billing system built for small and mid-size businesses.",
+    image: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?w=800&h=400&fit=crop",
     date: "05 Apr 2024",
     hasDownload: true,
   },
@@ -40,6 +48,8 @@ const mockOrders: Order[] = [
     id: 4,
     productName: "Healthcare Appointment Booking System",
     productTag: "Healthcare",
+    description: "Online appointment scheduling platform for clinics and hospitals with patient and doctor portals.",
+    image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&h=400&fit=crop",
     date: "19 Jun 2024",
     hasDownload: false,
   },
@@ -47,6 +57,8 @@ const mockOrders: Order[] = [
     id: 5,
     productName: "Restaurant POS & Order Management",
     productTag: "POS",
+    description: "Point-of-sale and order management system designed for restaurants, cafes, and food businesses.",
+    image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=400&fit=crop",
     date: "03 Sep 2024",
     hasDownload: true,
   },
@@ -54,6 +66,8 @@ const mockOrders: Order[] = [
     id: 6,
     productName: "Real Estate Listing & Lead Portal",
     productTag: "Real Estate",
+    description: "Property listing platform with lead capture, agent dashboards, and enquiry management tools.",
+    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
     date: "11 Jan 2025",
     hasDownload: false,
   },
@@ -91,28 +105,23 @@ const OrdersPage = () => {
             {mockOrders.map((order, index) => (
               <ScrollReveal key={order.id} delay={index * 70}>
                 <div className="group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors">
-                  {/* Product image placeholder */}
-                  <div className="flex h-48 w-full items-center justify-center bg-muted">
-                    <Package size={48} className="text-muted-foreground/40" />
-                  </div>
-
-                  {/* Card body */}
+                  <img
+                    src={order.image}
+                    alt={order.productName}
+                    className="w-full h-48 object-cover"
+                    loading="lazy"
+                  />
                   <div className="p-5 space-y-3">
                     <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">
                       {order.productTag}
                     </Badge>
-                    <h3 className="font-semibold text-base leading-snug line-clamp-2">
-                      {order.productName}
-                    </h3>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Calendar size={13} />
-                      <span>Purchased on {order.date}</span>
-                    </div>
-
-                    <div className="pt-2">
+                    <h3 className="font-semibold text-lg">{order.productName}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{order.description}</p>
+                    <div className="flex items-center justify-between pt-2 gap-2">
+                      <span className="font-bold text-foreground">Purchased {order.date}</span>
                       <Button
                         size="sm"
-                        className="w-full gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90"
+                        className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
                         disabled={!order.hasDownload}
                       >
                         <Download size={14} />
