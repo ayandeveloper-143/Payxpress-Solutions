@@ -411,6 +411,16 @@ const Navbar = () => {
                 {l.label}
               </Link>
             ))}
+            {isLoggedIn && (
+              <Link
+                to="/orders"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                <Package size={16} />
+                Order History
+              </Link>
+            )}
 
             {/* Bottom action row */}
             <div className="flex gap-2 pt-2 border-t mt-1">
