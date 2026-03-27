@@ -20,10 +20,12 @@ interface ProductCardProps {
 const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }: ProductCardProps) => {
   const navigate = useNavigate();
   const { cart, addToCart } = useCart();
-  const { isPurchased } = usePurchased();
+  const { isPurchased, getPurchasedCount } = usePurchased();
   const { toast } = useToast();
+  const purchasedCount = getPurchasedCount(slug);
+  const effectiveCartLimit = Math.max(0, cartLimit - purchasedCount);
   const cartQuantity = cart.find((item) => item.slug === slug)?.quantity ?? 0;
-  const isCartLimitReached = cartQuantity >= cartLimit;
+  const isCartLimitReached = effectiveCartLimit <= 0 || cartQuantity >= effectiveCartLimit;
   const purchased = isPurchased(slug);
 
   const openProduct = () => {
@@ -33,10 +35,10 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (cartQuantity >= cartLimit) {
+    if (cartQuantity >= effectiveCartLimit) {
       toast({
         title: "Cart limit reached",
-        description: `You can add only ${cartLimit} unit${cartLimit > 1 ? "s" : ""} of ${title}.`,
+        description: `You can add only ${effectiveCartLimit} unit${effectiveCartLimit > 1 ? "s" : ""} of ${title}.`,
       });
       return;
     }
@@ -47,7 +49,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
       price,
       image,
       quantity: 1,
-      cartLimit,
+      cartLimit: effectiveCartLimit,
     });
     toast({
       title: "Added to Cart",
@@ -95,7 +97,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
         <div className="flex items-center justify-between pt-2 gap-2">
           <span className="font-bold text-foreground">{price}</span>
           <div className="flex gap-2">
-            {purchased ? (
+            {purchased && (
               <Button
                 size="sm"
                 className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
@@ -104,7 +106,8 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
                 <Download size={14} />
                 Download
               </Button>
-            ) : (
+            )}
+            {effectiveCartLimit > 0 && (
               <>
                 <div onClick={(event) => event.stopPropagation()}>
                   <Button
@@ -122,9 +125,11 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
                     )}
                   </Button>
                 </div>
-                <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-                  <Link to={`/products/${slug}`}>Details</Link>
-                </Button>
+                {!purchased && (
+                  <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
+                    <Link to={`/products/${slug}`}>Details</Link>
+                  </Button>
+                )}
               </>
             )}
           </div>

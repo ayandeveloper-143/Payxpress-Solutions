@@ -43,7 +43,7 @@ const ProductDetails = () => {
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
     const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
     const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice } = useCart();
-    const { isPurchased } = usePurchased();
+    const { isPurchased, getPurchasedCount } = usePurchased();
     const { toast } = useToast();
 
     if (!product && (productQuery.isLoading || productQuery.isFetching)) {
@@ -80,10 +80,10 @@ const ProductDetails = () => {
         .slice(0, 3);
 
     const addCurrentProductToCart = () => {
-        if (currentProductQuantity >= product.cartLimit) {
+        if (currentProductQuantity >= effectiveCartLimit) {
             toast({
                 title: "Cart limit reached",
-                description: `You can add only ${product.cartLimit} unit${product.cartLimit > 1 ? "s" : ""} of ${product.title}.`,
+                description: `You can add only ${effectiveCartLimit} unit${effectiveCartLimit > 1 ? "s" : ""} of ${product.title}.`,
             });
             return false;
         }
@@ -94,7 +94,7 @@ const ProductDetails = () => {
             price: product.price,
             image: product.image,
             quantity: 1,
-            cartLimit: product.cartLimit,
+            cartLimit: effectiveCartLimit,
         });
 
         return true;
@@ -112,7 +112,7 @@ const ProductDetails = () => {
     };
 
     const handleBuyNow = () => {
-        if (currentProductQuantity >= product.cartLimit) {
+        if (currentProductQuantity >= effectiveCartLimit) {
             setCheckoutSheetOpen(true);
             return;
         }
@@ -139,6 +139,8 @@ const ProductDetails = () => {
 
     const currentProductQuantity = cart.find((item) => item.slug === product.slug)?.quantity ?? 0;
     const purchased = isPurchased(product.slug);
+    const purchasedCount = getPurchasedCount(product.slug);
+    const effectiveCartLimit = Math.max(0, product.cartLimit - purchasedCount);
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
@@ -174,7 +176,7 @@ const ProductDetails = () => {
                         </p>
 
                         <div className="flex flex-wrap gap-3 pt-3">
-                            {purchased ? (
+                            {purchased && (
                                 <Button
                                     type="button"
                                     className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
@@ -182,7 +184,8 @@ const ProductDetails = () => {
                                     <Download size={16} />
                                     Download
                                 </Button>
-                            ) : (
+                            )}
+                            {effectiveCartLimit > 0 && (
                                 <>
                                     <Button
                                         type="button"
@@ -191,16 +194,14 @@ const ProductDetails = () => {
                                     >
                                         Buy Now
                                     </Button>
-                                    {product.cartLimit > 1 && (
-                                        <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= product.cartLimit}>
-                                            Add to Cart
-                                            {currentProductQuantity > 0 && (
-                                                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                                                    {currentProductQuantity}
-                                                </span>
-                                            )}
-                                        </Button>
-                                    )}
+                                    <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= effectiveCartLimit}>
+                                        Add to Cart
+                                        {currentProductQuantity > 0 && (
+                                            <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                                                {currentProductQuantity}
+                                            </span>
+                                        )}
+                                    </Button>
                                 </>
                             )}
                             <Button asChild variant="outline">
