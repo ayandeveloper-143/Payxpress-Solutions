@@ -1,4 +1,4 @@
-import { Download, ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -68,10 +68,9 @@ const OrdersPage = () => {
                       <span className="text-xs text-muted-foreground">Purchased {purchasedAt}</span>
                       <Button
                         size="sm"
-                        className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
+                        className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Download size={14} />
                         Download
                       </Button>
                     </div>

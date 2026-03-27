@@ -16,7 +16,7 @@ import { getProductBySlug, products as fallbackProducts } from "@/data/products"
 import { useToast } from "@/hooks/use-toast";
 import { fetchProductBySlug, fetchProducts } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -179,9 +179,8 @@ const ProductDetails = () => {
                             {purchased && (
                                 <Button
                                     type="button"
-                                    className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                                    className="bg-accent text-accent-foreground hover:bg-accent/90"
                                 >
-                                    <Download size={16} />
                                     Download
                                 </Button>
                             )}

@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { usePurchased } from "@/context/PurchasedContext";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 
 interface ProductCardProps {
   slug: string;
@@ -100,10 +100,9 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
             {purchased && (
               <Button
                 size="sm"
-                className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
                 onClick={(e) => e.stopPropagation()}
               >
-                <Download size={14} />
                 Download
               </Button>
             )}
