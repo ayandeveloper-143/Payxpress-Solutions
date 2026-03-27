@@ -82,7 +82,7 @@ const AccountPage = () => {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors text-left ${
                     activeTab === tab.key
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
@@ -99,8 +99,8 @@ const AccountPage = () => {
             {activeTab === "profile" && (
               <ScrollReveal className="rounded-2xl border bg-card p-6 space-y-6">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <User size={18} className="text-primary" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10">
+                    <User size={18} className="text-accent" />
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-foreground">Profile Information</h2>
@@ -133,7 +133,7 @@ const AccountPage = () => {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all">
+                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
                     Save Changes
                   </Button>
                 </div>
@@ -144,8 +144,8 @@ const AccountPage = () => {
             {activeTab === "security" && (
               <ScrollReveal className="rounded-2xl border bg-card p-6 space-y-6">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <Lock size={18} className="text-primary" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10">
+                    <Lock size={18} className="text-accent" />
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-foreground">Change Password</h2>
@@ -225,7 +225,7 @@ const AccountPage = () => {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all">
+                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
                     Update Password
                   </Button>
                 </div>
@@ -236,8 +236,8 @@ const AccountPage = () => {
             {activeTab === "billing" && (
               <ScrollReveal className="rounded-2xl border bg-card p-6 space-y-6">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <Receipt size={18} className="text-primary" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10">
+                    <Receipt size={18} className="text-accent" />
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-foreground">Bills History</h2>
@@ -279,7 +279,7 @@ const AccountPage = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-primary text-primary hover:bg-primary/10">
+                            <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10">
                               Download
                             </Button>
                           </td>
@@ -313,7 +313,7 @@ const AccountPage = () => {
                           <p className="text-base font-semibold text-foreground">{bill.amount}</p>
                           <p className="text-xs text-muted-foreground">{bill.method}</p>
                         </div>
-                        <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-primary text-primary hover:bg-primary/10">
+                        <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10">
                           Download
                         </Button>
                       </div>
