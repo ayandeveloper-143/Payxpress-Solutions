@@ -5,44 +5,44 @@ import { env } from "../config/env.js";
 const hasMailConfig = Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 
 const transporter = hasMailConfig
-    ? nodemailer.createTransport({
-        host: env.smtpHost,
-        port: env.smtpPort,
-        secure: env.smtpSecure,
-        auth: {
-            user: env.smtpUser,
-            pass: env.smtpPass,
-        },
-        tls: {
-            servername: env.smtpTlsServername || undefined,
-            rejectUnauthorized: env.smtpTlsRejectUnauthorized,
-        },
-    })
-    : null;
+  ? nodemailer.createTransport({
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: env.smtpSecure,
+    auth: {
+      user: env.smtpUser,
+      pass: env.smtpPass,
+    },
+    tls: {
+      servername: env.smtpTlsServername || undefined,
+      rejectUnauthorized: env.smtpTlsRejectUnauthorized,
+    },
+  })
+  : null;
 
 const fromAddress = env.mailFrom || env.smtpUser || "no-reply@example.com";
 
 const sendMail = async (params: {
-    to: string;
-    subject: string;
-    html: string;
-    text: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
 }) => {
-    if (!transporter) {
-        console.warn("SMTP not configured. Skipping email send.", {
-            to: params.to,
-            subject: params.subject,
-        });
-        return;
-    }
-
-    await transporter.sendMail({
-        from: fromAddress,
-        to: params.to,
-        subject: params.subject,
-        html: params.html,
-        text: params.text,
+  if (!transporter) {
+    console.warn("SMTP not configured. Skipping email send.", {
+      to: params.to,
+      subject: params.subject,
     });
+    return;
+  }
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+    text: params.text,
+  });
 };
 
 const emailLayout = (content: string) => `<!DOCTYPE html>
@@ -102,9 +102,9 @@ const emailLayout = (content: string) => `<!DOCTYPE html>
 export const hashOtpCode = (value: string) => createHash("sha256").update(value).digest("hex");
 
 export const sendSignupVerificationEmail = async (to: string, name: string, verificationLink: string) => {
-    const subject = "Verify your PayXpress account";
-    const text = `Hi ${name},\n\nClick this link to verify your account:\n${verificationLink}\n\nThis link expires in 24 hours.\n\nIf you did not create a PayXpress account, you can safely ignore this email.`;
-    const html = emailLayout(`
+  const subject = "Verify your PayXpress account";
+  const text = `Hi ${name},\n\nClick this link to verify your account:\n${verificationLink}\n\nThis link expires in 24 hours.\n\nIf you did not create a PayXpress account, you can safely ignore this email.`;
+  const html = emailLayout(`
       <!-- Icon -->
       <div style="text-align:center;margin-bottom:28px;">
         <div style="display:inline-block;width:64px;height:64px;background:linear-gradient(135deg,#fff3e8 0%,#ffe0c4 100%);border-radius:50%;line-height:64px;font-size:28px;">
@@ -155,13 +155,13 @@ export const sendSignupVerificationEmail = async (to: string, name: string, veri
       </div>
     `);
 
-    await sendMail({ to, subject, text, html });
+  await sendMail({ to, subject, text, html });
 };
 
 export const sendPasswordResetEmail = async (to: string, resetLink: string) => {
-    const subject = "Reset your PayXpress password";
-    const text = `A password reset was requested for your PayXpress account.\n\nClick this link to set a new password:\n${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email. Your password will remain unchanged.`;
-    const html = emailLayout(`
+  const subject = "Reset your PayXpress password";
+  const text = `A password reset was requested for your PayXpress account.\n\nClick this link to set a new password:\n${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email. Your password will remain unchanged.`;
+  const html = emailLayout(`
       <!-- Icon -->
       <div style="text-align:center;margin-bottom:28px;">
         <div style="display:inline-block;width:64px;height:64px;background:linear-gradient(135deg,#e8f0ff 0%,#c4d8ff 100%);border-radius:50%;line-height:64px;font-size:28px;">
@@ -212,5 +212,5 @@ export const sendPasswordResetEmail = async (to: string, resetLink: string) => {
       </div>
     `);
 
-    await sendMail({ to, subject, text, html });
+  await sendMail({ to, subject, text, html });
 };
