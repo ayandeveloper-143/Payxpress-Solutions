@@ -49,8 +49,8 @@ const OrdersPage = () => {
           <div className="space-y-4">
             {orders.map(({ product, purchasedAt }, index) => (
               <ScrollReveal key={product.slug} delay={index * 70}>
-                <Link to={`/products/${product.slug}`} className="block group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex cursor-pointer">
-                  <div className="w-28 sm:w-44 shrink-0 self-stretch overflow-hidden">
+                <Link to={`/products/${product.slug}`} className="block group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex flex-col sm:flex-row cursor-pointer">
+                  <div className="w-full h-48 sm:w-44 sm:h-auto shrink-0 overflow-hidden">
                     <img
                       src={product.image}
                       alt={product.title}
