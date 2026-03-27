@@ -9,6 +9,7 @@ interface PurchasedContextType {
   purchasedItems: PurchasedItem[];
   isPurchased: (slug: string) => boolean;
   getPurchasedItem: (slug: string) => PurchasedItem | undefined;
+  getPurchasedCount: (slug: string) => number;
 }
 
 const mockPurchasedItems: PurchasedItem[] = [
@@ -26,8 +27,10 @@ export const PurchasedProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const getPurchasedItem = (slug: string) => purchasedItems.find((item) => item.slug === slug);
 
+  const getPurchasedCount = (slug: string) => purchasedItems.filter((item) => item.slug === slug).length;
+
   return (
-    <PurchasedContext.Provider value={{ purchasedItems, isPurchased, getPurchasedItem }}>
+    <PurchasedContext.Provider value={{ purchasedItems, isPurchased, getPurchasedItem, getPurchasedCount }}>
       {children}
     </PurchasedContext.Provider>
   );
