@@ -309,7 +309,7 @@ const ProductDetails = () => {
                 </DialogContent>
             </Dialog>
 
-            <Sheet open={checkoutSheetOpen} onOpenChange={setCheckoutSheetOpen} modal={false}>
+            <Sheet open={checkoutSheetOpen} onOpenChange={setCheckoutSheetOpen}>
                 <SheetContent
                     side="right"
                     className="w-full sm:max-w-md p-0"
