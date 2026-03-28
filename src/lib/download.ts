@@ -18,7 +18,7 @@ export async function downloadProductFile(productSlug: string): Promise<void> {
         } catch {
             try {
                 message = await response.text();
-            } catch {}
+            } catch { }
         }
         throw new ApiRequestError({
             message,

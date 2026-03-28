@@ -21,31 +21,37 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+
 const ProductDetails = () => {
     const { slug } = useParams();
-
-    if (!slug) {
-        return <Navigate to="/" replace />;
-    }
-
     const productQuery = useQuery({
         queryKey: ["product", slug],
-        queryFn: () => fetchProductBySlug(slug),
+        queryFn: () => slug ? fetchProductBySlug(slug) : Promise.resolve(undefined),
+        enabled: !!slug,
     });
-
     const productsQuery = useQuery({
         queryKey: ["products"],
         queryFn: fetchProducts,
     });
-
     const product = productQuery.data?.product;
     const products = productsQuery.data?.products ?? [];
     const screenshotsRef = useRef<HTMLDivElement | null>(null);
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
     const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice } = useCart();
     const { isPurchased, getPurchasedCount } = usePurchased();
     const { toast } = useToast();
+
+    // Defensive: fallback values if product is not loaded
+    const currentProductQuantity = product ? (cart.find((item) => item.slug === product.slug)?.quantity ?? 0) : 0;
+    const purchased = product ? isPurchased(product.slug) : false;
+    const purchasedCount = product ? getPurchasedCount(product.slug) : 0;
+    const effectiveCartLimit = product ? Math.max(0, product.cartLimit - purchasedCount) : 0;
+
+    if (!slug) {
+        return <Navigate to="/" replace />;
+    }
 
     if (!product && (productQuery.isLoading || productQuery.isFetching)) {
         return (
@@ -54,7 +60,6 @@ const ProductDetails = () => {
                 <main className="container-main pt-28 pb-16 space-y-16" aria-label="Loading product details">
                     <section className="grid gap-10 lg:grid-cols-2 lg:gap-14 items-start">
                         <Skeleton className="w-full h-[460px] rounded-2xl" />
-
                         <div className="space-y-5">
                             <Skeleton className="h-5 w-24" />
                             <Skeleton className="h-10 w-3/4" />
@@ -68,7 +73,6 @@ const ProductDetails = () => {
                             </div>
                         </div>
                     </section>
-
                     <section className="space-y-5">
                         <Skeleton className="h-9 w-56" />
                         <div className="flex gap-5 overflow-hidden pb-1">
@@ -150,7 +154,8 @@ const ProductDetails = () => {
         // No cart notification needed
     };
 
-    const [isDownloading, setIsDownloading] = useState(false);
+
+    // Download handler (was missing)
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
@@ -183,10 +188,7 @@ const ProductDetails = () => {
         }
     };
 
-    const currentProductQuantity = cart.find((item) => item.slug === product.slug)?.quantity ?? 0;
-    const purchased = isPurchased(product.slug);
-    const purchasedCount = getPurchasedCount(product.slug);
-    const effectiveCartLimit = Math.max(0, product.cartLimit - purchasedCount);
+    // ...existing code...
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
