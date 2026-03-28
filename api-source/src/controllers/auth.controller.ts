@@ -38,6 +38,47 @@ type UserRecord = {
     email: string;
     password_hash: string;
     is_verified: number;
+    order_history: unknown;
+};
+
+type OrderHistoryItem = {
+    slug: string;
+    purchasedAt: string;
+};
+
+const parseOrderHistory = (value: unknown): OrderHistoryItem[] => {
+    const normalized =
+        typeof value === "string"
+            ? (() => {
+                try {
+                    return JSON.parse(value);
+                } catch {
+                    return null;
+                }
+            })()
+            : value;
+
+    if (!Array.isArray(normalized)) {
+        return [];
+    }
+
+    return normalized
+        .map((entry) => {
+            if (
+                typeof entry !== "object" ||
+                entry === null ||
+                typeof (entry as { slug?: unknown }).slug !== "string" ||
+                typeof (entry as { purchasedAt?: unknown }).purchasedAt !== "string"
+            ) {
+                return null;
+            }
+
+            return {
+                slug: (entry as { slug: string }).slug,
+                purchasedAt: (entry as { purchasedAt: string }).purchasedAt,
+            };
+        })
+        .filter((entry): entry is OrderHistoryItem => entry !== null);
 };
 
 type AccessTokenPayload = {
@@ -315,7 +356,7 @@ export const verifySignupLink = async (request: Request, response: Response) => 
         }
 
         const [rows] = await db.query(
-            `SELECT id, uuid, name, email, password_hash, is_verified
+            `SELECT id, uuid, name, email, password_hash, is_verified, order_history
              FROM users
              WHERE email = ?
              LIMIT 1`,
@@ -347,6 +388,7 @@ export const verifySignupLink = async (request: Request, response: Response) => 
                 id: user.uuid,
                 name: user.name,
                 email: user.email,
+                orderHistory: parseOrderHistory(user.order_history),
             },
         });
     } catch (error) {
@@ -374,7 +416,7 @@ export const login = async (request: Request, response: Response) => {
 
         const { email, password } = parsed.data;
         const [rows] = await db.query(
-            `SELECT id, uuid, name, email, password_hash, is_verified
+            `SELECT id, uuid, name, email, password_hash, is_verified, order_history
              FROM users
              WHERE email = ?
              LIMIT 1`,
@@ -440,6 +482,7 @@ export const login = async (request: Request, response: Response) => {
                 id: user.uuid,
                 name: user.name,
                 email: user.email,
+                orderHistory: parseOrderHistory(user.order_history),
             },
         });
     } catch (error) {
@@ -603,7 +646,7 @@ export const getCurrentUser = async (request: Request, response: Response) => {
         }
 
         const [rows] = await db.query(
-            `SELECT id, uuid, name, email, password_hash, is_verified
+            `SELECT id, uuid, name, email, password_hash, is_verified, order_history
              FROM users
              WHERE uuid = ?
              LIMIT 1`,
@@ -625,6 +668,7 @@ export const getCurrentUser = async (request: Request, response: Response) => {
                 id: user.uuid,
                 name: user.name,
                 email: user.email,
+                orderHistory: parseOrderHistory(user.order_history),
             },
         });
     } catch (error) {

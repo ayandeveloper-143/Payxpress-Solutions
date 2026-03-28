@@ -1,27 +1,76 @@
 import { ShoppingBag } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/context/AuthContext";
+import { useEffect, useRef, useState } from "react";
 import { usePurchased } from "@/context/PurchasedContext";
 import { products } from "@/data/products";
 import { useToast } from "@/hooks/use-toast";
+import { downloadProductFile } from "@/lib/download";
+import { format } from "date-fns";
+
+const orderLoadingSkeletons = Array.from({ length: 3 }, (_, index) => `order-loading-${index}`);
 
 const OrdersPage = () => {
+  const { isLoggedIn, isAuthLoading, refreshUser } = useAuth();
+  // Refresh order history on navigation/visibility
+  // Only refresh on first mount and when tab becomes visible (not on every render)
+  const didInitial = useRef(false);
+  useEffect(() => {
+    if (!didInitial.current) {
+      refreshUser?.();
+      didInitial.current = true;
+    }
+    // Only refresh on mount, not on tab visibility change
+  }, [refreshUser]);
   const { purchasedItems } = usePurchased();
   const { toast } = useToast();
 
-  const handleDownload = (event: React.MouseEvent<HTMLButtonElement>, productTitle: string) => {
+  if (!isAuthLoading && !isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  const [downloadingSlug, setDownloadingSlug] = useState<string | null>(null);
+
+  const handleDownload = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+    productSlug: string,
+    productTitle: string
+  ) => {
     event.preventDefault();
     event.stopPropagation();
-
-    // Download action stays independent from card navigation.
-    toast({
-      title: "Download started",
-      description: `${productTitle} is being prepared for download.`,
-    });
+    setDownloadingSlug(productSlug);
+    try {
+      toast({
+        title: "Download started",
+        description: `${productTitle} is being prepared for download.`,
+      });
+      const url = await downloadProductFile(productSlug);
+      // Trigger file download
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast({
+        title: "Download Ready",
+        description: `${productTitle} download started!`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error?.message || "Could not download file.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingSlug(null);
+    }
   };
 
   const orders = purchasedItems
@@ -47,7 +96,28 @@ const OrdersPage = () => {
         </ScrollReveal>
 
         {/* Orders List */}
-        {orders.length === 0 ? (
+        {isAuthLoading ? (
+          <div className="space-y-4" aria-label="Loading order history">
+            {orderLoadingSkeletons.map((key) => (
+              <div
+                key={key}
+                className="block border rounded-xl overflow-hidden bg-card transition-colors flex flex-col sm:flex-row"
+              >
+                <Skeleton className="w-full h-48 sm:w-44 sm:h-auto shrink-0 rounded-none" />
+                <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                  <div className="flex items-center justify-between pt-1 gap-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-9 w-24" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : orders.length === 0 ? (
           <ScrollReveal className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
               <ShoppingBag size={36} className="text-muted-foreground" />
@@ -78,11 +148,15 @@ const OrdersPage = () => {
                     <h3 className="font-semibold text-base sm:text-lg">{product.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{product.description}</p>
                     <div className="flex items-center justify-between pt-1 gap-2">
-                      <span className="text-xs text-muted-foreground">Purchased {purchasedAt}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {purchasedAt ? format(new Date(purchasedAt), "dd MMM yyyy, hh:mm a") : ""}
+                      </span>
                       <Button
                         size="sm"
                         className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
-                        onClick={(event) => handleDownload(event, product.title)}
+                        onClick={(event) => handleDownload(event, product.slug, product.title)}
+                        isLoading={downloadingSlug === product.slug}
+                        disabled={downloadingSlug !== null && downloadingSlug !== product.slug}
                       >
                         Download
                       </Button>

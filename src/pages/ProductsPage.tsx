@@ -3,19 +3,20 @@ import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Badge } from "@/components/ui/badge";
-import { products as fallbackProducts } from "@/data/products";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchProducts } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 const categories = ["SaaS", "E-commerce", "Automation"];
+const loadingSkeletons = Array.from({ length: 6 }, (_, index) => `product-loading-${index}`);
 
 const ProductsPage = () => {
-    const { data } = useQuery({
+    const { data, isLoading, isError } = useQuery({
         queryKey: ["products"],
         queryFn: fetchProducts,
     });
 
-    const products = data?.products ?? fallbackProducts;
+    const products = data?.products ?? [];
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
@@ -46,21 +47,45 @@ const ProductsPage = () => {
                 </section>
                 <section className="space-y-6">
                     <h2 className="text-2xl sm:text-3xl font-semibold">All Products</h2>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map((product, index) => (
-                            <ScrollReveal key={product.slug} delay={index * 70}>
-                                <ProductCard
-                                    slug={product.slug}
-                                    title={product.title}
-                                    description={product.description}
-                                    tag={product.tag}
-                                    price={product.price}
-                                    image={product.image}
-                                    cartLimit={product.cartLimit}
-                                />
-                            </ScrollReveal>
-                        ))}
-                    </div>
+                    {isLoading ? (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {loadingSkeletons.map((key) => (
+                                <div key={key} className="border rounded-xl overflow-hidden bg-card">
+                                    <Skeleton className="h-48 w-full rounded-none" />
+                                    <div className="p-5 space-y-3">
+                                        <Skeleton className="h-5 w-24" />
+                                        <Skeleton className="h-6 w-3/4" />
+                                        <Skeleton className="h-4 w-full" />
+                                        <Skeleton className="h-4 w-5/6" />
+                                        <div className="flex items-center justify-between pt-2">
+                                            <Skeleton className="h-6 w-20" />
+                                            <Skeleton className="h-9 w-9 rounded-md" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : isError ? (
+                        <p className="text-sm text-muted-foreground">Unable to load products right now.</p>
+                    ) : products.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No products available yet.</p>
+                    ) : (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {products.map((product, index) => (
+                                <ScrollReveal key={product.slug} delay={index * 70}>
+                                    <ProductCard
+                                        slug={product.slug}
+                                        title={product.title}
+                                        description={product.description}
+                                        tag={product.tag}
+                                        price={product.price}
+                                        image={product.image}
+                                        cartLimit={product.cartLimit}
+                                    />
+                                </ScrollReveal>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
             </main>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { Navigate } from "react-router-dom";
 
 type Tab = "profile" | "security" | "billing";
 
@@ -20,7 +21,12 @@ const mockBills = [
 ];
 
 const AccountPage = () => {
-  const { user } = useAuth();
+  const { user, isLoggedIn, isAuthLoading } = useAuth();
+
+  if (!isAuthLoading && !isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
   const [activeTab, setActiveTab] = useState<Tab>("profile");
 
   const [name, setName] = useState(user?.name ?? "");
@@ -80,11 +86,10 @@ const AccountPage = () => {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors text-left ${
-                    activeTab === tab.key
+                  className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors text-left ${activeTab === tab.key
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   {tab.icon}
                   {tab.label}
@@ -269,11 +274,10 @@ const AccountPage = () => {
                           <td className="px-4 py-3 text-muted-foreground">{bill.method}</td>
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                bill.status === "Paid"
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
                                   ? "bg-green-100 text-green-700"
                                   : "bg-yellow-100 text-yellow-700"
-                              }`}
+                                }`}
                             >
                               {bill.status}
                             </span>
@@ -299,11 +303,10 @@ const AccountPage = () => {
                           <p className="text-xs text-muted-foreground">{bill.date}</p>
                         </div>
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            bill.status === "Paid"
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
                               ? "bg-green-100 text-green-700"
                               : "bg-yellow-100 text-yellow-700"
-                          }`}
+                            }`}
                         >
                           {bill.status}
                         </span>

@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
@@ -197,7 +198,12 @@ const Checkout = () => {
                     className="w-full bg-accent text-accent-foreground hover:bg-accent/90 py-6 text-base"
                     disabled={isProcessing || !paymentGatewayEnabled}
                   >
-                    {isProcessing ? "Processing..." : paymentGatewayEnabled ? "Proceed to Payment" : "Payment Unavailable"}
+                    {isProcessing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin" size={20} />
+                        Processing...
+                      </span>
+                    ) : paymentGatewayEnabled ? "Proceed to Payment" : "Payment Unavailable"}
                   </Button>
                 </form>
               </Form>

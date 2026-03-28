@@ -1,7 +1,7 @@
 import type { Product } from "@/data/products";
 import type { CartItem } from "@/types/cart";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
 
 type RequestOptions = RequestInit & {
     body?: string;
@@ -109,6 +109,12 @@ export interface AuthUserResponse {
     id: string;
     name: string;
     email: string;
+    orderHistory: UserOrderHistoryItem[];
+}
+
+export interface UserOrderHistoryItem {
+    slug: string;
+    purchasedAt: string;
 }
 
 export interface LoginPayload {

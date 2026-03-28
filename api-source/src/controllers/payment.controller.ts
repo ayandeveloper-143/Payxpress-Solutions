@@ -1,11 +1,11 @@
 import type { Request, Response } from "express";
 import { createHash } from "node:crypto";
 import jwt from "jsonwebtoken";
-import type { RowDataPacket } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
+import type { PoolConnection } from "mysql2/promise";
 import { z } from "zod";
 import { db } from "../config/db.js";
 import { env } from "../config/env.js";
-import { request } from "node:http";
 
 const createCashfreeSessionSchema = z.object({
     orderId: z.string().trim().min(3).max(50).optional(),
@@ -82,6 +82,22 @@ type CashfreeOrderPaymentsResponse = {
     message?: string;
     data?: CashfreeOrderPaymentTransaction[];
     payments?: CashfreeOrderPaymentTransaction[];
+};
+
+type JsonRecord = Record<string, unknown>;
+
+type OrderHistoryItem = {
+    slug: string;
+    purchasedAt: string;
+};
+
+type BillRow = RowDataPacket & {
+    uid: string;
+    carts: unknown;
+};
+
+type UserOrderHistoryRow = RowDataPacket & {
+    order_history: unknown;
 };
 
 const hashAccessToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -243,6 +259,145 @@ const toBillingAddressObject = (params: {
     };
 };
 
+const toJsonRecord = (value: unknown): JsonRecord | null => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return null;
+    }
+
+    return value as JsonRecord;
+};
+
+const readString = (obj: JsonRecord | null, key: string) => {
+    if (!obj) {
+        return null;
+    }
+
+    const value = obj[key];
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
+const normalizeBillStatus = (value: string | null): "pending" | "success" | "failed" | "unknown" => {
+    if (!value) {
+        return "unknown";
+    }
+
+    const normalized = value.trim().toUpperCase();
+
+    if (normalized.includes("SUCCESS") || normalized === "PAID") {
+        return "success";
+    }
+
+    if (normalized.includes("FAIL") || normalized.includes("DECLINED") || normalized.includes("CANCEL")) {
+        return "failed";
+    }
+
+    if (normalized.includes("PENDING") || normalized.includes("NOT_ATTEMPTED") || normalized.includes("ACTIVE")) {
+        return "pending";
+    }
+
+    return "unknown";
+};
+
+const extractWebhookBillUpdate = (payload: unknown) => {
+    const root = toJsonRecord(payload);
+    const rootData = toJsonRecord(root?.data);
+    const rootOrder = toJsonRecord(root?.order);
+    const rootPayment = toJsonRecord(root?.payment);
+    const dataOrder = toJsonRecord(rootData?.order);
+    const dataPayment = toJsonRecord(rootData?.payment);
+
+    const orderId =
+        readString(root, "order_id") ||
+        readString(rootOrder, "order_id") ||
+        readString(dataOrder, "order_id") ||
+        readString(root, "orderId");
+
+    const txnId =
+        readString(root, "txnid") ||
+        readString(root, "cf_payment_id") ||
+        readString(rootPayment, "cf_payment_id") ||
+        readString(dataPayment, "cf_payment_id") ||
+        readString(rootPayment, "payment_id") ||
+        readString(dataPayment, "payment_id") ||
+        readString(rootPayment, "paymentId") ||
+        readString(dataPayment, "paymentId");
+
+    const statusRaw =
+        readString(rootPayment, "payment_status") ||
+        readString(dataPayment, "payment_status") ||
+        readString(rootOrder, "order_status") ||
+        readString(dataOrder, "order_status") ||
+        readString(root, "payment_status") ||
+        readString(root, "status") ||
+        readString(root, "type");
+
+    return {
+        orderId,
+        txnId,
+        status: normalizeBillStatus(statusRaw),
+    };
+};
+
+const parseOrderHistory = (raw: unknown): OrderHistoryItem[] => {
+    if (!raw) {
+        return [];
+    }
+
+    try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : Buffer.isBuffer(raw) ? JSON.parse(raw.toString("utf8")) : raw;
+
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((item) => {
+                const row = toJsonRecord(item);
+                const slug = readString(row, "slug");
+                const purchasedAt = readString(row, "purchasedAt");
+
+                if (!slug || !purchasedAt) {
+                    return null;
+                }
+
+                return { slug, purchasedAt };
+            })
+            .filter((item): item is OrderHistoryItem => item !== null);
+    } catch {
+        return [];
+    }
+};
+
+const parseBillCartSlugs = (raw: unknown) => {
+    if (!raw) {
+        return [] as string[];
+    }
+
+    try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : Buffer.isBuffer(raw) ? JSON.parse(raw.toString("utf8")) : raw;
+        const root = toJsonRecord(parsed);
+        const cartItems = Array.isArray(root?.cart_items) ? root.cart_items : [];
+
+        return [...new Set(
+            cartItems
+                .map((item) => readString(toJsonRecord(item), "item_id") || readString(toJsonRecord(item), "slug"))
+                .filter((slug): slug is string => typeof slug === "string" && slug.length > 0)
+        )];
+    } catch {
+        return [] as string[];
+    }
+};
+
+const mergeOrderHistory = (current: OrderHistoryItem[], purchasedSlugs: string[], purchasedAt: string) => {
+    const historyBySlug = new Map(current.map((item) => [item.slug, item]));
+
+    for (const slug of purchasedSlugs) {
+        historyBySlug.set(slug, { slug, purchasedAt });
+    }
+
+    return [...historyBySlug.values()];
+};
+
 export const createCashfreeSession = async (request: Request, response: Response) => {
     try {
         if (!env.paymentGatewayEnabled) {
@@ -379,11 +534,20 @@ export const createCashfreeSession = async (request: Request, response: Response
             return;
         }
 
+
         const orderAmount = Number(
             cartItems
                 .reduce((total, item) => total + item.item_discounted_unit_price * item.item_quantity, 0)
                 .toFixed(2)
         );
+
+        // Generate unique invoice id: INV-YYYYMMDDnnn (nnn = last 3 digits of ms timestamp)
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, "0");
+        const d = String(today.getDate()).padStart(2, "0");
+        const ms = String(Date.now() % 1000).padStart(3, "0");
+        const invoiceId = `INV-${y}${m}${d}${ms}`;
 
         if (!Number.isFinite(orderAmount) || orderAmount <= 0) {
             response.status(400).json({ message: "Invalid order amount from cart." });
@@ -417,6 +581,9 @@ export const createCashfreeSession = async (request: Request, response: Response
                 return_url: `${env.clientOrigin.replace(/\/$/, "")}/payment-success?order_id={order_id}`,
                 notify_url: `${env.clientOrigin.replace(/\/$/, "")}/api/webhook`,
             },
+            order_tags: {
+                INVOICE: invoiceId,
+            },
             cart_details: {
                 cart_name: `${user.name} cart`,
                 cart_items: cartItems,
@@ -447,9 +614,42 @@ export const createCashfreeSession = async (request: Request, response: Response
             return;
         }
 
+        const finalOrderId = responseData.order_id ?? orderId;
+        const billSeedData = {
+            event: "cashfree_session_created",
+            cashfree_response: responseData,
+        };
+
+        // Save only the original address1 string (if present) in billing_address
+        let billingAddressRaw = "";
+        if (typeof data.billingAddress === "string") {
+            billingAddressRaw = data.billingAddress;
+        } else if (data.billingAddress && typeof data.billingAddress.address1 === "string") {
+            billingAddressRaw = data.billingAddress.address1;
+        }
+
+        await db.query(
+            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status)
+             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending')
+             ON DUPLICATE KEY UPDATE
+                uid = VALUES(uid),
+                carts = VALUES(carts),
+                billing_address = VALUES(billing_address),
+                data = VALUES(data),
+                status = 'pending',
+                updated_at = CURRENT_TIMESTAMP`,
+            [
+                finalOrderId,
+                user.uuid,
+                JSON.stringify(payload.cart_details),
+                billingAddressRaw,
+                JSON.stringify(billSeedData),
+            ]
+        );
+
         response.status(201).json({
             message: "Payment session created.",
-            orderId: responseData.order_id ?? orderId,
+            orderId: finalOrderId,
             paymentSessionId: responseData.payment_session_id,
         });
     } catch (error) {
@@ -548,9 +748,93 @@ export const getCashfreeOrderStatus = async (request: Request, response: Respons
     }
 };
 
-export const cashfreeWebhook = async (_request: Request, response: Response) => {
-    // TODO: Handle Cashfree webhook events here.
+export const cashfreeWebhook = async (request: Request, response: Response) => {
+    let connection: PoolConnection | null = null;
+    let transactionStarted = false;
 
-    console.log(JSON.stringify(_request.body, null, 2));
-    response.status(200).json({ message: "Webhook placeholder." });
+    try {
+        connection = await db.getConnection();
+        const { orderId, txnId, status } = extractWebhookBillUpdate(request.body);
+
+        if (!orderId) {
+            response.status(400).json({ message: "Missing order id in webhook payload." });
+            return;
+        }
+
+        await connection.beginTransaction();
+        transactionStarted = true;
+
+        const [result] = await connection.query<ResultSetHeader>(
+            `UPDATE bills
+             SET txnid = COALESCE(?, txnid),
+                 data = CAST(? AS JSON),
+                 status = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE orderid = ?`,
+            [txnId, JSON.stringify(request.body ?? {}), status, orderId]
+        );
+
+        if (result.affectedRows === 0) {
+            await connection.rollback();
+            transactionStarted = false;
+            response.status(404).json({ message: "Bill record not found for this order id." });
+            return;
+        }
+
+        if (status === "success") {
+            const [billRows] = await connection.query<BillRow[]>(
+                `SELECT uid, carts
+                 FROM bills
+                 WHERE orderid = ?
+                 LIMIT 1`,
+                [orderId]
+            );
+
+            const bill = billRows[0];
+
+            if (bill) {
+                const purchasedSlugs = parseBillCartSlugs(bill.carts);
+
+                if (purchasedSlugs.length > 0) {
+                    const [userRows] = await connection.query<UserOrderHistoryRow[]>(
+                        `SELECT order_history
+                         FROM users
+                         WHERE uuid = ?
+                         LIMIT 1`,
+                        [bill.uid]
+                    );
+
+                    const existingHistory = parseOrderHistory(userRows[0]?.order_history);
+                    const purchasedAt = new Date().toISOString();
+                    const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
+
+                    await connection.query(
+                        `UPDATE users
+                         SET order_history = CAST(? AS JSON),
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE uuid = ?`,
+                        [JSON.stringify(nextHistory), bill.uid]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        transactionStarted = false;
+
+        response.status(200).json({
+            message: "Webhook received and bill updated.",
+            orderId,
+            status,
+        });
+    } catch (error) {
+        if (connection && transactionStarted) {
+            await connection.rollback().catch(() => undefined);
+        }
+
+        console.error(error);
+        response.status(500).json({ message: "Unable to process webhook right now." });
+    } finally {
+        connection?.release();
+    }
 };

@@ -39,6 +39,23 @@ const startServer = async () => {
         `);
     }
 
+    const [orderHistoryColumnRows] = await db.query(
+        `SELECT 1 AS present
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = ?
+           AND TABLE_NAME = 'users'
+           AND COLUMN_NAME = 'order_history'
+         LIMIT 1`,
+        [env.dbName]
+    );
+
+    if ((orderHistoryColumnRows as Array<{ present: number }>).length === 0) {
+        await db.execute(`
+            ALTER TABLE users
+            ADD COLUMN order_history JSON NULL
+        `);
+    }
+
     app.listen(env.port, () => {
         console.log(`API server running on http://localhost:${env.port}`);
     });

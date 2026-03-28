@@ -50,31 +50,29 @@ const AppRoutes = () => {
   }, [location.pathname, location.hash]);
 
   return (
-    <div key={`${location.pathname}${location.hash}`} className="page-enter">
-      <Routes location={location}>
-        <Route path="/" element={<Index />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/products/:slug" element={<ProductDetails />} />
-        <Route path="/custom-solutions" element={<CustomSolutionsPage />} />
-        <Route path="/about" element={<AboutUs />} />
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/contact" element={<ContactUs />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms-conditions" element={<TermsConditions />} />
-        <Route path="/cookie-policy" element={<CookiePolicy />} />
-        <Route path="/refund-policy" element={<RefundPolicy />} />
-        <Route path="/return-policy" element={<ReturnPolicy />} />
-        <Route path="/cancel-policy" element={<CancelPolicy />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/payment-success" element={<PaymentSuccess />} />
-        <Route path="/account" element={<AccountPage />} />
-        <Route path="/orders" element={<OrdersPage />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </div>
+    <Routes location={location}>
+      <Route path="/" element={<Index />} />
+      <Route path="/products" element={<ProductsPage />} />
+      <Route path="/products/:slug" element={<ProductDetails />} />
+      <Route path="/custom-solutions" element={<CustomSolutionsPage />} />
+      <Route path="/about" element={<AboutUs />} />
+      <Route path="/services" element={<ServicesPage />} />
+      <Route path="/contact" element={<ContactUs />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-conditions" element={<TermsConditions />} />
+      <Route path="/cookie-policy" element={<CookiePolicy />} />
+      <Route path="/refund-policy" element={<RefundPolicy />} />
+      <Route path="/return-policy" element={<ReturnPolicy />} />
+      <Route path="/cancel-policy" element={<CancelPolicy />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/checkout" element={<Checkout />} />
+      <Route path="/payment-success" element={<PaymentSuccess />} />
+      <Route path="/account" element={<AccountPage />} />
+      <Route path="/orders" element={<OrdersPage />} />
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
 

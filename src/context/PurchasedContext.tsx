@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export interface PurchasedItem {
   slug: string;
@@ -12,16 +13,11 @@ interface PurchasedContextType {
   getPurchasedCount: (slug: string) => number;
 }
 
-const mockPurchasedItems: PurchasedItem[] = [
-  { slug: "web3-crypto-defi-app-ui-kit", purchasedAt: "12 Jan 2024" },
-  { slug: "1-vs-1-quiz-app-ui-design-kit", purchasedAt: "28 Feb 2024" },
-  { slug: "restaurant-app-ui-design-kit", purchasedAt: "05 Apr 2024" },
-];
-
 const PurchasedContext = createContext<PurchasedContextType | undefined>(undefined);
 
 export const PurchasedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const purchasedItems = mockPurchasedItems;
+  const { user } = useAuth();
+  const purchasedItems = user?.orderHistory ?? [];
 
   const isPurchased = (slug: string) => purchasedItems.some((item) => item.slug === slug);
 

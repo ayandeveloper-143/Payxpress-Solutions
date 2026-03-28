@@ -4,7 +4,9 @@ import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { usePurchased } from "@/context/PurchasedContext";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { downloadProductFile } from "@/lib/download";
 import { ShoppingCart } from "lucide-react";
 
 interface ProductCardProps {
@@ -21,7 +23,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
   const navigate = useNavigate();
   const { cart, addToCart } = useCart();
   const { isPurchased, getPurchasedCount } = usePurchased();
-  const { toast } = useToast();
+  // const { toast } = useToast();
   const purchasedCount = getPurchasedCount(slug);
   const effectiveCartLimit = Math.max(0, cartLimit - purchasedCount);
   const cartQuantity = cart.find((item) => item.slug === slug)?.quantity ?? 0;
@@ -36,14 +38,10 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
     e.stopPropagation();
 
     if (cartQuantity >= effectiveCartLimit) {
-      toast({
-        title: "Cart limit reached",
-        description: `You can add only ${effectiveCartLimit} unit${effectiveCartLimit > 1 ? "s" : ""} of ${title}.`,
-      });
       return;
     }
 
-    addToCart({
+    const wasAdded = addToCart({
       slug,
       title,
       price,
@@ -51,18 +49,44 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
       quantity: 1,
       cartLimit: effectiveCartLimit,
     });
-    toast({
-      title: "Added to Cart",
-      description: `${title} has been added to your cart`,
-    });
+
+    if (!wasAdded) {
+      return;
+    }
+
+    // No cart notification needed
   };
 
-  const handleDownload = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
+  const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    toast({
-      title: "Download started",
-      description: `${title} is being prepared for download.`,
-    });
+    setIsDownloading(true);
+    try {
+      toast({
+        title: "Download started",
+        description: `${title} is being prepared for download.`,
+      });
+      const url = await downloadProductFile(slug);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast({
+        title: "Download Ready",
+        description: `${title} download started!`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error?.message || "Could not download file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -110,6 +134,8 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
                 size="sm"
                 className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
                 onClick={handleDownload}
+                isLoading={isDownloading}
+                disabled={isDownloading}
               >
                 Download
               </Button>

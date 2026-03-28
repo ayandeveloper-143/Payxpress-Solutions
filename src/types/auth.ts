@@ -1,7 +1,10 @@
+import type { UserOrderHistoryItem } from "@/lib/api";
+
 export interface AuthUser {
   id?: string;
   email: string;
   name?: string;
+  orderHistory?: UserOrderHistoryItem[];
 }
 
 export interface AuthContextType {
@@ -13,4 +16,5 @@ export interface AuthContextType {
   verifySignupToken: (token: string) => Promise<string>;
   forgotPassword: (email: string) => Promise<void>;
   logout: () => void;
+  refreshUser?: () => Promise<void>;
 }

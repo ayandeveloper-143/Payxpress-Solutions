@@ -111,7 +111,8 @@ CREATE TABLE `users` (
   `is_verified` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `cart_items_json` json DEFAULT NULL
+  `cart_items_json` json DEFAULT NULL,
+  `order_history` json DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

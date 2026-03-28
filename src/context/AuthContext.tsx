@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuthUser, AuthContextType } from "@/types/auth";
+import type { AuthUserResponse } from "@/lib/api";
 import {
   getCurrentUser,
   loginUser,
@@ -20,47 +21,50 @@ function loadUserFromStorage(): AuthUser | null {
   }
 }
 
+const mapUserFromApi = (user: AuthUserResponse): AuthUser => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  orderHistory: Array.isArray(user.orderHistory) ? user.orderHistory : [],
+});
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(loadUserFromStorage);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(() => Boolean(localStorage.getItem("auth_token")));
 
-  // Verify token in background and refresh stored user data.
-  useEffect(() => {
+
+  // Helper to refresh user/order history on demand
+  const refreshUser = async () => {
     const token = localStorage.getItem("auth_token");
-
-    if (token) {
-      getCurrentUser()
-        .then((response) => {
-          const authUser: AuthUser = {
-            id: response.user.id,
-            email: response.user.email,
-            name: response.user.name,
-          };
-          setUser(authUser);
-          localStorage.setItem("user", JSON.stringify(authUser));
-        })
-        .catch(() => {
-          setUser(null);
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("user");
-        });
+    if (!token) {
+      setUser(null);
+      setIsAuthLoading(false);
       return;
     }
-
-    // No token — clear any stale user data
-    if (!token && localStorage.getItem("user")) {
-      localStorage.removeItem("user");
+    setIsAuthLoading(true);
+    try {
+      const response = await getCurrentUser();
+      const authUser = mapUserFromApi(response.user);
+      setUser(authUser);
+      localStorage.setItem("user", JSON.stringify(authUser));
+    } catch {
       setUser(null);
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user");
+    } finally {
+      setIsAuthLoading(false);
     }
+  };
+
+  // Initial load
+  useEffect(() => {
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email: string, password: string) => {
     const response = await loginUser({ email, password });
-    const authUser: AuthUser = {
-      id: response.user.id,
-      email: response.user.email,
-      name: response.user.name,
-    };
+    const authUser = mapUserFromApi(response.user);
     setUser(authUser);
     localStorage.setItem("auth_token", response.token);
     localStorage.setItem("user", JSON.stringify(authUser));
@@ -76,11 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifySignupToken = async (token: string) => {
     const response = await verifySignupLink({ token });
-    const authUser: AuthUser = {
-      id: response.user.id,
-      email: response.user.email,
-      name: response.user.name,
-    };
+    const authUser = mapUserFromApi(response.user);
 
     setUser(authUser);
     localStorage.setItem("auth_token", response.token);
@@ -111,6 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verifySignupToken,
         forgotPassword,
         logout,
+        refreshUser,
       }}
     >
       {children}

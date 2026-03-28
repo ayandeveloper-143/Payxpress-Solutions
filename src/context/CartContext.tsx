@@ -5,7 +5,7 @@ import { fetchUserCart, saveUserCart } from "@/lib/api";
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: CartItem) => void;
+  addToCart: (item: CartItem) => boolean;
   removeFromCart: (slug: string) => void;
   updateQuantity: (slug: string, quantity: number) => void;
   clearCart: () => void;
@@ -17,9 +17,21 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const { isLoggedIn, isAuthLoading } = useAuth();
+  const { user, isLoggedIn, isAuthLoading } = useAuth();
   const [hasHydrated, setHasHydrated] = useState(false);
   const CART_STORAGE_KEY = "cart";
+
+  const isPurchased = (slug: string) => (user?.orderHistory ?? []).some((item) => item.slug === slug);
+
+  const removePurchasedItems = (items: CartItem[]) => {
+    if (!user?.orderHistory?.length) {
+      return items;
+    }
+
+    const purchasedSlugs = new Set(user.orderHistory.map((item) => item.slug));
+    const filtered = items.filter((item) => !purchasedSlugs.has(item.slug));
+    return filtered.length === items.length ? items : filtered;
+  };
 
   const isValidCartItem = (value: unknown): value is CartItem => {
     if (!value || typeof value !== "object") {
@@ -68,7 +80,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validItems));
       }
 
-      return validItems;
+      return removePurchasedItems(validItems);
     } catch (error) {
       console.error("Failed to parse cart from localStorage", error);
       localStorage.removeItem(CART_STORAGE_KEY);
@@ -125,7 +137,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const localCart = readCartFromStorage();
         const response = await fetchUserCart();
-        const mergedCart = mergeCartItems(response.cart, localCart);
+        const mergedCart = removePurchasedItems(mergeCartItems(response.cart, localCart));
 
         setCart(mergedCart);
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(mergedCart));
@@ -137,6 +149,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     syncOnLogin();
   }, [hasHydrated, isAuthLoading, isLoggedIn]);
+
+  // Ensure purchased products are never kept in cart after order history refresh.
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
+    setCart((prevCart) => removePurchasedItems(prevCart));
+  }, [hasHydrated, user?.orderHistory]);
 
   // Persist server cart whenever logged-in cart changes.
   useEffect(() => {
@@ -153,7 +174,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timeout);
   }, [cart, hasHydrated, isAuthLoading, isLoggedIn]);
 
-  const addToCart = (item: CartItem) => {
+  const addToCart = (item: CartItem): boolean => {
+    if (isPurchased(item.slug)) {
+      setCart((prevCart) => prevCart.filter((entry) => entry.slug !== item.slug));
+      return false;
+    }
+
     setCart((prevCart) => {
       const normalizedItem = clampCartItem(item);
       const existingItem = prevCart.find((i) => i.slug === item.slug);
@@ -170,6 +196,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return [...prevCart, normalizedItem];
     });
+
+    return true;
   };
 
   const removeFromCart = (slug: string) => {
@@ -178,6 +206,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateQuantity = (slug: string, quantity: number) => {
     setCart((prevCart) => {
+      if (isPurchased(slug)) {
+        return prevCart.filter((item) => item.slug !== slug);
+      }
+
       const existingItem = prevCart.find((item) => item.slug === slug);
 
       if (!existingItem) {

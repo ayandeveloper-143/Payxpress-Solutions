@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Sheet,
     SheetContent,
@@ -12,8 +13,8 @@ import {
 } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
 import { usePurchased } from "@/context/PurchasedContext";
-import { getProductBySlug, products as fallbackProducts } from "@/data/products";
 import { useToast } from "@/hooks/use-toast";
+import { downloadProductFile } from "@/lib/download";
 import { fetchProductBySlug, fetchProducts } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -37,8 +38,8 @@ const ProductDetails = () => {
         queryFn: fetchProducts,
     });
 
-    const product = productQuery.data?.product ?? getProductBySlug(slug);
-    const products = productsQuery.data?.products ?? fallbackProducts;
+    const product = productQuery.data?.product;
+    const products = productsQuery.data?.products ?? [];
     const screenshotsRef = useRef<HTMLDivElement | null>(null);
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
     const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
@@ -48,8 +49,35 @@ const ProductDetails = () => {
 
     if (!product && (productQuery.isLoading || productQuery.isFetching)) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
-                Loading product details...
+            <div className="min-h-screen overflow-x-hidden bg-background">
+                <Navbar />
+                <main className="container-main pt-28 pb-16 space-y-16" aria-label="Loading product details">
+                    <section className="grid gap-10 lg:grid-cols-2 lg:gap-14 items-start">
+                        <Skeleton className="w-full h-[460px] rounded-2xl" />
+
+                        <div className="space-y-5">
+                            <Skeleton className="h-5 w-24" />
+                            <Skeleton className="h-10 w-3/4" />
+                            <Skeleton className="h-5 w-full" />
+                            <Skeleton className="h-5 w-11/12" />
+                            <Skeleton className="h-7 w-40" />
+                            <Skeleton className="h-16 w-full rounded-lg" />
+                            <div className="flex flex-wrap gap-3 pt-3">
+                                <Skeleton className="h-10 w-28" />
+                                <Skeleton className="h-10 w-28" />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="space-y-5">
+                        <Skeleton className="h-9 w-56" />
+                        <div className="flex gap-5 overflow-hidden pb-1">
+                            <Skeleton className="w-[88%] sm:w-[64%] lg:w-[46%] h-64 sm:h-72 rounded-xl shrink-0" />
+                            <Skeleton className="w-[88%] sm:w-[64%] lg:w-[46%] h-64 sm:h-72 rounded-xl shrink-0" />
+                        </div>
+                    </section>
+                </main>
+                <Footer />
             </div>
         );
     }
@@ -81,14 +109,10 @@ const ProductDetails = () => {
 
     const addCurrentProductToCart = () => {
         if (currentProductQuantity >= effectiveCartLimit) {
-            toast({
-                title: "Cart limit reached",
-                description: `You can add only ${effectiveCartLimit} unit${effectiveCartLimit > 1 ? "s" : ""} of ${product.title}.`,
-            });
             return false;
         }
 
-        addToCart({
+        const wasAdded = addToCart({
             slug: product.slug,
             title: product.title,
             price: product.price,
@@ -96,6 +120,10 @@ const ProductDetails = () => {
             quantity: 1,
             cartLimit: effectiveCartLimit,
         });
+
+        if (!wasAdded) {
+            return false;
+        }
 
         return true;
     };
@@ -105,10 +133,7 @@ const ProductDetails = () => {
             return;
         }
 
-        toast({
-            title: "Added to Cart",
-            description: `${product.title} has been added to your cart`,
-        });
+        // No cart notification needed
     };
 
     const handleBuyNow = () => {
@@ -122,17 +147,37 @@ const ProductDetails = () => {
         }
 
         setCheckoutSheetOpen(true);
-        toast({
-            title: "Ready for Checkout",
-            description: `${product.title} is added. You can continue checkout from side menu.`,
-        });
+        // No cart notification needed
     };
 
-    const handleDownload = () => {
-        toast({
-            title: "Download started",
-            description: `${product.title} is being prepared for download.`,
-        });
+    const [isDownloading, setIsDownloading] = useState(false);
+    const handleDownload = async () => {
+        setIsDownloading(true);
+        try {
+            toast({
+                title: "Download started",
+                description: `${product.title} is being prepared for download.`,
+            });
+            const url = await downloadProductFile(product.slug);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast({
+                title: "Download Ready",
+                description: `${product.title} download started!`,
+            });
+        } catch (error: any) {
+            toast({
+                title: "Download Failed",
+                description: error?.message || "Could not download file.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     const preventCloseOnToastClick = (event: Event) => {
@@ -188,6 +233,8 @@ const ProductDetails = () => {
                                     type="button"
                                     className="bg-accent text-accent-foreground hover:bg-accent/90"
                                     onClick={handleDownload}
+                                    isLoading={isDownloading}
+                                    disabled={isDownloading}
                                 >
                                     Download
                                 </Button>

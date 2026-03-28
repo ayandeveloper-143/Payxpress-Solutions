@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { X, ShoppingCart, LogOut, Search, UserCircle, Package } from "lucide-react";
+import { ShoppingCart, LogOut, Search, UserCircle, Package } from "lucide-react";
 import { products } from "@/data/products";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -28,7 +28,6 @@ const links = [
 ];
 
 type AuthFormType = "login" | "signup" | "forgot";
-const bannerStorageKey = "development-banner-hidden";
 const checkoutIntentStorageKey = "pending-checkout-after-login";
 
 const Navbar = () => {
@@ -37,7 +36,6 @@ const Navbar = () => {
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authFormType, setAuthFormType] = useState<AuthFormType>("login");
-  const [bannerVisible, setBannerVisible] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const { cart, getTotalItems, getTotalPrice, removeFromCart, updateQuantity, clearCart } = useCart();
   const { isLoggedIn, user, logout } = useAuth();
@@ -46,11 +44,6 @@ const Navbar = () => {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const profileRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const hiddenBanner = window.localStorage.getItem(bannerStorageKey) === "true";
-    setBannerVisible(!hiddenBanner);
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -97,11 +90,6 @@ const Navbar = () => {
 
     setAuthDialogOpen(false);
     setAuthFormType("login");
-  };
-
-  const closeBanner = () => {
-    setBannerVisible(false);
-    window.localStorage.setItem(bannerStorageKey, "true");
   };
 
   const searchResults = useMemo(() => {
@@ -251,26 +239,10 @@ const Navbar = () => {
 
   return (
     <>
-      {bannerVisible && (
-        <div className="fixed top-0 z-[60] w-full bg-red-600 text-white">
-          <div className="container-main flex h-8 items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em]">
-            <span>Development Phase</span>
-            <button
-              type="button"
-              onClick={closeBanner}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 hover:text-white"
-              aria-label="Close development banner"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
       <nav
         className={cn(
           "fixed z-50 w-full border-b",
-          bannerVisible ? "top-8" : "top-0",
+          "top-0",
           open ? "bg-white border-border" : "bg-background/95 backdrop-blur-sm border-border",
         )}
       >
