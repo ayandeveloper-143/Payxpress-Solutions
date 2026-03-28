@@ -11,12 +11,17 @@ interface CartContextType {
   clearCart: () => void;
   getTotalPrice: () => string;
   getTotalItems: () => number;
+  cartSheetOpen: boolean;
+  setCartSheetOpen: (open: boolean) => void;
+  openCartSheet: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const openCartSheet = () => setCartSheetOpen(true);
   const { user, isLoggedIn, isAuthLoading } = useAuth();
   const [hasHydrated, setHasHydrated] = useState(false);
   const CART_STORAGE_KEY = "cart";
@@ -245,7 +250,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, getTotalPrice, getTotalItems }}>
+    <CartContext.Provider value={{
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      getTotalPrice,
+      getTotalItems,
+      cartSheetOpen,
+      setCartSheetOpen,
+      openCartSheet,
+    }}>
       {children}
     </CartContext.Provider>
   );

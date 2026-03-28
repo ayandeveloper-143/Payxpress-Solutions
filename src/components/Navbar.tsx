@@ -35,7 +35,7 @@ const checkoutIntentStorageKey = "pending-checkout-after-login";
 const Navbar = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const { cartSheetOpen, setCartSheetOpen } = useCart();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authFormType, setAuthFormType] = useState<AuthFormType>("login");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -271,8 +271,17 @@ const Navbar = () => {
           </>
         )}
         {isLoggedIn ? (
-          <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={cart.length === 0}>
-            <Link to="/checkout">Proceed to Checkout</Link>
+          <Button
+            asChild
+            className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+            disabled={cart.length === 0}
+          >
+            <Link
+              to="/checkout"
+              onClick={() => setCartSheetOpen(false)}
+            >
+              Proceed to Checkout
+            </Link>
           </Button>
         ) : (
           <Button

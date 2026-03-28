@@ -39,7 +39,7 @@ const ProductDetails = () => {
     const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
     const [checkoutSheetOpen, setCheckoutSheetOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice } = useCart();
+    const { cart, addToCart, updateQuantity, removeFromCart, getTotalItems, getTotalPrice, openCartSheet } = useCart();
     const { isPurchased, getPurchasedCount } = usePurchased();
     const { toast } = useToast();
 
@@ -142,7 +142,7 @@ const ProductDetails = () => {
 
     const handleBuyNow = () => {
         if (currentProductQuantity >= effectiveCartLimit) {
-            setCheckoutSheetOpen(true);
+            openCartSheet();
             return;
         }
 
@@ -150,7 +150,7 @@ const ProductDetails = () => {
             return;
         }
 
-        setCheckoutSheetOpen(true);
+        openCartSheet();
         // No cart notification needed
     };
 
