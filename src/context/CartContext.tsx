@@ -14,6 +14,7 @@ interface CartContextType {
   cartSheetOpen: boolean;
   setCartSheetOpen: (open: boolean) => void;
   openCartSheet: () => void;
+  syncCartToServer: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -249,6 +250,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return cart.reduce((acc, item) => acc + item.quantity, 0);
   };
 
+  // Public method to force sync cart to server
+  const syncCartToServer = async () => {
+    try {
+      await saveUserCart({ cart });
+    } catch (error) {
+      console.error("Failed to sync cart to server", error);
+    }
+  };
+
   return (
     <CartContext.Provider value={{
       cart,
@@ -261,6 +271,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cartSheetOpen,
       setCartSheetOpen,
       openCartSheet,
+      syncCartToServer,
     }}>
       {children}
     </CartContext.Provider>

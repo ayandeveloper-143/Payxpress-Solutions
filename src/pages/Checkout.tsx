@@ -30,7 +30,7 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { cart, getTotalPrice } = useCart();
+  const { cart, getTotalPrice, syncCartToServer } = useCart();
   const [breakdown, setBreakdown] = useState(null);
 
   // Fetch breakdown for current cart (not just after submit)
@@ -111,6 +111,9 @@ const Checkout = () => {
   const onSubmit = async (values: CheckoutFormValues) => {
     try {
       setIsProcessing(true);
+
+      // Always sync cart to server before payment (prevents empty cart bug)
+      await syncCartToServer();
 
       // Call Cashfree payment
       const result = await handleCashfreePayment({
