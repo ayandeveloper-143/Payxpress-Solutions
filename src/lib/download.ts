@@ -18,7 +18,7 @@ export async function downloadProductFile(productSlug: string): Promise<void> {
         } catch {
             try {
                 message = await response.text();
-            } catch { }
+            } catch {}
         }
         throw new ApiRequestError({
             message,
@@ -26,13 +26,18 @@ export async function downloadProductFile(productSlug: string): Promise<void> {
         });
     }
 
-    // Get filename from Content-Disposition header
+    // Get file extension from Content-Disposition or fallback to .zip
+    let extension = ".zip";
     const disposition = response.headers.get("Content-Disposition");
-    let filename = "download.zip";
     if (disposition) {
         const match = disposition.match(/filename="?([^";]+)"?/);
-        if (match) filename = match[1];
+        if (match) {
+            const original = match[1];
+            const extMatch = original.match(/(\.[a-zA-Z0-9]+)$/);
+            if (extMatch) extension = extMatch[1];
+        }
     }
+    const filename = productSlug + extension;
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
