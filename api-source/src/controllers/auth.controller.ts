@@ -140,6 +140,7 @@ const isAccessTokenActive = async (params: { token: string; userUuid: string }) 
     return (rows as Array<{ id: number }>).length > 0;
 };
 
+
 const revokeAccessToken = async (params: { token: string; userUuid: string }) => {
     await db.execute(
         `UPDATE auth_sessions
@@ -148,6 +149,17 @@ const revokeAccessToken = async (params: { token: string; userUuid: string }) =>
            AND token_hash = ?
            AND revoked_at IS NULL`,
         [params.userUuid, hashAccessToken(params.token)]
+    );
+};
+
+// Revoke all access tokens for a user (logout everywhere)
+const revokeAllAccessTokens = async (userUuid: string) => {
+    await db.execute(
+        `UPDATE auth_sessions
+         SET revoked_at = NOW()
+         WHERE user_uuid = ?
+           AND revoked_at IS NULL`,
+        [userUuid]
     );
 };
 
@@ -453,6 +465,10 @@ export const login = async (request: Request, response: Response) => {
             });
             return;
         }
+
+
+        // Revoke all previous sessions for this user (logout everywhere else)
+        await revokeAllAccessTokens(user.uuid);
 
         const accessToken = signAccessToken({ uuid: user.uuid, email: user.email, name: user.name });
         await persistAccessToken({ token: accessToken, userUuid: user.uuid, request });
