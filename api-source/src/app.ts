@@ -10,7 +10,21 @@ import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
 import billsRouter from "./routes/bills.routes.js";
 
+
 const app = express();
+
+// Serve static files from public, but NOT /bills (bills only via API)
+import path from "path";
+app.use("/", express.static(path.resolve("public"), {
+    index: false,
+    setHeaders: (res, filePath) => {
+        // Prevent direct access to /bills/
+        if (filePath.includes(`${path.sep}bills${path.sep}`)) {
+            res.statusCode = 403;
+            res.end("Forbidden");
+        }
+    }
+}));
 
 app.set("trust proxy", 1);
 

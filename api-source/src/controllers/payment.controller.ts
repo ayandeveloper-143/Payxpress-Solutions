@@ -835,7 +835,6 @@ export const getCashfreeOrderStatus = async (request: Request, response: Respons
 export const cashfreeWebhook = async (request: Request, response: Response) => {
     let connection: PoolConnection | null = null;
     let transactionStarted = false;
-
     try {
         connection = await db.getConnection();
         const { orderId, txnId, status } = extractWebhookBillUpdate(request.body);
@@ -865,40 +864,166 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             return;
         }
 
+        // PDF generation logic after bill is marked as success
         if (status === "success") {
-            const [billRows] = await connection.query<BillRow[]>(
-                `SELECT uid, carts
-                 FROM bills
-                 WHERE orderid = ?
-                 LIMIT 1`,
+            // Fetch all bill data for invoice
+            const [billRows] = await connection.query<any[]>(
+                `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
                 [orderId]
             );
-
             const bill = billRows[0];
 
             if (bill) {
+                // Update user order history as before
                 const purchasedSlugs = parseBillCartSlugs(bill.carts);
-
                 if (purchasedSlugs.length > 0) {
                     const [userRows] = await connection.query<UserOrderHistoryRow[]>(
-                        `SELECT order_history
-                         FROM users
-                         WHERE uuid = ?
-                         LIMIT 1`,
+                        `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
                         [bill.uid]
                     );
-
                     const existingHistory = parseOrderHistory(userRows[0]?.order_history);
                     const purchasedAt = new Date().toISOString();
                     const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
-
                     await connection.query(
-                        `UPDATE users
-                         SET order_history = CAST(? AS JSON),
-                             updated_at = CURRENT_TIMESTAMP
-                         WHERE uuid = ?`,
+                        `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
                         [JSON.stringify(nextHistory), bill.uid]
                     );
+                }
+
+                // --- PDF GENERATION ---
+                try {
+                    const path = await import("path");
+                    const { generatePdfFromHtml } = await import("../utils/pdf.js");
+
+                    // Extract data for template
+                    let invoiceNo = "";
+                    let billData = bill;
+                    let billJson: any = {};
+                    try {
+                        billJson = typeof bill.data === "string" ? JSON.parse(bill.data) : bill.data;
+                        invoiceNo = billJson?.data?.order?.order_tags?.INVOICE || "";
+                    } catch { }
+
+                    // Parse cart items
+                    let cart = typeof bill.carts === "string" ? JSON.parse(bill.carts) : bill.carts;
+                    let cartItems: any[] = Array.isArray(cart?.cart_items) ? cart.cart_items : [];
+
+                    // Build items HTML
+                    let itemsHtml = cartItems.map((item: any) => `
+                        <tr>
+                            <td>
+                                <div class="product-name">${item.item_name}</div>
+                                <div class="product-desc">${item.item_description || ""}</div>
+                            </td>
+                            <td>${Array.isArray(item.item_tags) ? item.item_tags.join(", ") : ""}</td>
+                            <td>${item.item_quantity}</td>
+                            <td>₹${item.item_discounted_unit_price}</td>
+                            <td>₹${item.item_discounted_unit_price * item.item_quantity}</td>
+                        </tr>
+                    `).join("");
+
+                    // Format date/time
+                    const paymentTime = billJson?.data?.payment?.payment_time || bill.created_at;
+                    const paymentTimeStr = new Date(paymentTime).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+                    const createdDateStr = new Date(bill.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+                    // Inline HTML template
+                    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice - PayXpress</title>
+    <style>body { font-family: 'Inter', sans-serif; padding: 30px; } .invoice { max-width: 900px; margin: auto; background: #fff; padding: 45px; } .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 25px; border-bottom: 1px solid #eee; } .brand { font-size: 24px; font-weight: 700; color: #111; margin-bottom: 8px; } .company-info { font-size: 13px; color: #666; line-height: 1.7; } .meta { text-align: right; font-size: 13px; color: #444; line-height: 1.8; } .status { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 8px; background: #e8f0fe; color: #1a73e8; font-weight: 600; font-size: 12px; } .section { margin-top: 35px; } .grid { display: flex; gap: 40px; } .box { flex: 1; font-size: 14px; line-height: 1.7; } .title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #888; text-transform: uppercase; } table { width: 100%; border-collapse: collapse; margin-top: 15px; } th { text-align: left; padding: 12px; font-size: 12px; color: #777; background: #fafafa; border-bottom: 1px solid #eee; } td { padding: 14px 12px; border-bottom: 1px solid #f1f1f1; font-size: 14px; } .product-name { font-weight: 600; margin-bottom: 4px; } .product-desc { font-size: 12px; color: #888; } .total-box { margin-top: 85px; display: flex; justify-content: flex-end; } .total { width: 260px; font-size: 14px; } .total-row { display: flex; justify-content: space-between; padding: 6px 0; } .gst-row { display: flex; justify-content: space-between; padding: 6px 0; } .fees-row { display: flex; justify-content: space-between; padding: 6px 0; } .grand-total { font-size: 18px; font-weight: 700; color: #111; margin-top: 8px; border-top: 1px solid #eee; padding-top: 10px; } .footer { margin-top: 40px; font-size: 12px; color: #777; } .brand img { height: 48px; width: auto; object-fit: contain; display: block; margin-bottom: 6px; }</style>
+</head>
+<body>
+    <div class="invoice">
+        <div class="header">
+            <div>
+                <div class="brand">
+                    <img src="https://payxpress-solutions.com/logo.png" alt="PayXpress Logo">
+                </div>
+                <div class="company-info">
+                    Bareya, West Bengal 713512<br>
+                    Phone: 085095 17215<br>
+                    GST: 19CFDPM7789E1ZV
+                </div>
+            </div>
+            <div class="meta">
+                <div><b>Invoice:</b> ${invoiceNo}</div>
+                <div><b>Order ID:</b> ${bill.orderid}</div>
+                <div><b>Date:</b> ${createdDateStr}</div>
+                <div class="status">Completed</div>
+            </div>
+        </div>
+        <div class="section grid">
+            <div class="box">
+                <div class="title">Billing Details</div>
+                ${billJson?.data?.customer_details?.customer_name || ""}<br>
+                ${billJson?.data?.customer_details?.customer_email || ""}<br>
+                ${billJson?.data?.customer_details?.customer_phone || ""}<br>
+                ${bill.billing_address || ""}<br>
+                India
+            </div>
+            <div class="box">
+                <div class="title">Payment Info</div>
+                Method: UPI<br>
+                UPI ID: ${billJson?.data?.payment?.payment_method?.upi?.upi_id || ""}<br>
+                Payment ID: ${billJson?.data?.payment?.cf_payment_id || ""}<br>
+                Bank Ref: ${billJson?.data?.payment?.bank_reference || ""}<br>
+                Time: ${paymentTimeStr}
+            </div>
+        </div>
+        <div class="section">
+            <div class="title">Order Summary</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>${itemsHtml}</tbody>
+            </table>
+        </div>
+        <div class="total-box">
+            <div class="total">
+                <div class="total-row">
+                    <span>Price (incl. GST & fees)</span>
+                    <span>₹${bill.total}</span>
+                </div>
+                <div class="gst-row">
+                    <span>GST included (${bill.gst_percent}%)</span>
+                    <span>₹${bill.gst_amount}</span>
+                </div>
+                <div class="fees-row">
+                    <span>Gateway Fee (${bill.gateway_fee ? ((bill.gateway_fee / bill.total) * 100).toFixed(0) : 2}%)</span>
+                    <span>₹${bill.gateway_fee}</span>
+                </div>
+                <div class="total-row grand-total">
+                    <span>Total</span>
+                    <span>₹${bill.total}</span>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            Admin: Anshuman Mondal
+        </div>
+    </div>
+</body>
+</html>`;
+
+                    // Output path
+                    const invoiceId = invoiceNo || bill.orderid;
+                    const userId = bill.uid;
+                    const outputDir = path.resolve("public/bills", userId);
+                    const outputPath = path.join(outputDir, `${invoiceId}.pdf`);
+
+                    await generatePdfFromHtml(html, outputPath);
+                } catch (pdfErr) {
+                    console.error("PDF generation failed:", pdfErr);
                 }
             }
         }
@@ -915,10 +1040,9 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
         if (connection && transactionStarted) {
             await connection.rollback().catch(() => undefined);
         }
-
         console.error(error);
         response.status(500).json({ message: "Unable to process webhook right now." });
     } finally {
         connection?.release();
     }
-};
+}

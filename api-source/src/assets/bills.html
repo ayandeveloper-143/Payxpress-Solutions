@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice - PayXpress</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            padding: 30px;
+        }
+
+        .invoice {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 45px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-bottom: 25px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111;
+            margin-bottom: 8px;
+        }
+
+        .company-info {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.7;
+        }
+
+        .meta {
+            text-align: right;
+            font-size: 13px;
+            color: #444;
+            line-height: 1.8;
+        }
+
+        .status {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: #e8f0fe;
+            color: #1a73e8;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .section {
+            margin-top: 35px;
+        }
+
+        .grid {
+            display: flex;
+            gap: 40px;
+        }
+
+        .box {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            font-size: 12px;
+            color: #777;
+            background: #fafafa;
+            border-bottom: 1px solid #eee;
+        }
+
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #f1f1f1;
+            font-size: 14px;
+        }
+
+        .product-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .product-desc {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .total-box {
+            margin-top: 85px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .total {
+            width: 260px;
+            font-size: 14px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .gst-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .fees-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+
+
+        .grand-total {
+            font-size: 18px;
+            font-weight: 700;
+            color: #111;
+            margin-top: 8px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .brand img {
+            height: 48px;
+            /* perfect SaaS header size */
+            width: auto;
+            object-fit: contain;
+            display: block;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="invoice">
+
+        <!-- HEADER -->
+        <div class="header">
+            <div>
+                <div class="brand">
+                    <img src="https://payxpress-solutions.com/logo.png" alt="PayXpress Logo">
+                </div>
+                <div class="company-info">
+                    Bareya, West Bengal 713512<br>
+                    Phone: 085095 17215<br>
+                    GST: 19CFDPM7789E1ZV
+                </div>
+            </div>
+
+            <div class="meta">
+                <div><b>Invoice:</b> INV-20260328561</div>
+                <div><b>Order ID:</b> ORDER_1774712243561</div>
+                <div><b>Date:</b> 28 Mar 2026</div>
+                <div class="status">Completed</div>
+            </div>
+        </div>
+
+        <!-- CUSTOMER + PAYMENT -->
+        <div class="section grid">
+            <div class="box">
+                <div class="title">Billing Details</div>
+                Ayan Khan<br>
+                ayanconsole@gmail.com<br>
+                6367234758<br>
+                Bareya, Majida, Purbasthali Patuli<br>
+                India
+            </div>
+
+            <div class="box">
+                <div class="title">Payment Info</div>
+                Method: UPI<br>
+                UPI ID: developera124-2@okicici<br>
+                Payment ID: 5250345875<br>
+                Bank Ref: 608708922091<br>
+                Time: 28 Mar 2026, 09:09 PM
+            </div>
+        </div>
+
+        <!-- ITEMS -->
+        <div class="section">
+            <div class="title">Order Summary</div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="product-name">Web3: Crypto & DeFi App UI Kit</div>
+                            <div class="product-desc">20+ modern Android UI screens for crypto & DeFi</div>
+                        </td>
+                        <td>UI Kit</td>
+                        <td>1</td>
+                        <td>₹1.00</td>
+                        <td>₹1.00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TOTAL -->
+        <div class="total-box">
+            <div class="total">
+                <div class="total-row">
+                    <span>Price (incl. GST & fees)</span>
+                    <span>₹1.00</span>
+                </div>
+                <div class="gst-row">
+                    <span>GST included (18%)</span>
+                    <span>₹1.00</span>
+                </div>
+                <div class="fees-row">
+                    <span>Gateway Fee (2%)</span>
+                    <span>₹1.00</span>
+                </div>
+                <div class="total-row grand-total">
+                    <span>Total</span>
+                    <span>₹1.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            Admin: Anshuman Mondal
+        </div>
+
+    </div>
+</body>
+
+</html>

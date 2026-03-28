@@ -1,3 +1,35 @@
+export async function downloadBillPdf(invoiceId: string): Promise<void> {
+    const token = localStorage.getItem("auth_token");
+    const response = await fetch(`${apiBaseUrl}/bills/${invoiceId}.pdf`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+        },
+    });
+
+    if (!response.ok) {
+        let message = "Download failed.";
+        try {
+            const data = await response.json();
+            message = data.message || message;
+        } catch {
+            try { message = await response.text(); } catch { }
+        }
+        throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${invoiceId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }, 100);
+}
 import { ApiRequestError } from "@/lib/api";
 import { apiBaseUrl } from "@/lib/api";
 

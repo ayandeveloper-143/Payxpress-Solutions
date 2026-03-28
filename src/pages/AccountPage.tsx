@@ -6,6 +6,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchBillsHistory, Bill } from "@/lib/api";
+import { downloadBillPdf } from "@/lib/download";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
@@ -47,6 +48,22 @@ const AccountPage = () => {
   const [bills, setBills] = useState<Bill[]>([]);
   const [billsLoading, setBillsLoading] = useState(false);
   const [billsError, setBillsError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const handleDownload = async (invoiceId: string) => {
+    setDownloading(invoiceId);
+    try {
+      await downloadBillPdf(invoiceId);
+    } catch (err: any) {
+      toast({
+        title: "Download failed",
+        description: err?.message || "Unable to download invoice.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   // Fetch bills from API
   const fetchBills = useCallback(async () => {
@@ -371,7 +388,13 @@ const AccountPage = () => {
                                 <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700">Paid</span>
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10" disabled>
+                                <Button
+                                  type="button"
+                                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                                  isLoading={downloading === bill.invoiceNo}
+                                  disabled={downloading === bill.invoiceNo}
+                                  onClick={() => handleDownload(bill.invoiceNo)}
+                                >
                                   Download
                                 </Button>
                               </td>
@@ -415,7 +438,13 @@ const AccountPage = () => {
                             <div className="space-y-0.5">
                               <p className="text-base font-semibold text-foreground">₹{bill.amount}</p>
                             </div>
-                            <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10" disabled>
+                            <Button
+                              type="button"
+                              className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                              isLoading={downloading === bill.invoiceNo}
+                              disabled={downloading === bill.invoiceNo}
+                              onClick={() => handleDownload(bill.invoiceNo)}
+                            >
                               Download
                             </Button>
                           </div>
