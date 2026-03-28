@@ -1,9 +1,12 @@
+
 import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { buildLoginAlertEmail } from "./email-templates/login-alert.template.js";
 import { buildPasswordResetEmail } from "./email-templates/password-reset.template.js";
 import { buildSignupVerificationEmail } from "./email-templates/signup-verification.template.js";
+import { renderEmailLayout, escapeHtml } from "././email-templates/shared.js";
+
 
 const hasMailConfig = Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 
@@ -81,4 +84,69 @@ export const sendLoginAlertEmail = async (params: {
   });
 
   await sendMail({ to: params.to, subject, text, html });
+};
+
+
+export const sendPaymentSuccessEmail = async (params: {
+  to: string;
+  name: string;
+  orderId: string;
+  invoiceId: string;
+  amount: number;
+  paymentMethod: string;
+  paymentTime: string;
+  pdfPath: string;
+}) => {
+  const subject = `Payment Successful - Invoice #${params.invoiceId}`;
+  const html = renderEmailLayout({
+    title: "Payment Successful",
+    preheader: `Thank you, ${params.name}! Your payment was successful.`,
+    intro: `We are pleased to inform you that your payment for Order ID ${params.orderId} has been successfully processed. Below are the details of your transaction:`,
+    bodyHtml: `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:0 0 12px 0;">
+            <div style="height:1px;background-color:#eee;line-height:1px;font-size:1px;">&nbsp;</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 18px 0;">
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Order ID: <strong>${params.orderId}</strong></p>
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Invoice ID: <strong>${params.invoiceId}</strong></p>
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Amount Paid: <strong>₹${params.amount}</strong></p>
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Payment Method: <strong>${params.paymentMethod}</strong></p>
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Payment Time: <strong>${params.paymentTime}</strong></p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 0 0 0;">
+            <p style="margin:0;color:#333;font-size:15px;line-height:1.6;font-family:'Inter',sans-serif;">Your invoice PDF is attached with this email.</p>
+          </td>
+        </tr>
+      </table>
+    `,
+  });
+
+  const text = `Thank you, ${params.name}! Your payment was successful.\n\nOrder ID: ${params.orderId}\nInvoice ID: ${params.invoiceId}\nAmount Paid: ₹${params.amount}\nPayment Method: ${params.paymentMethod}\nPayment Time: ${params.paymentTime}\n\nYour invoice PDF is attached with this email.`;
+
+  if (!transporter) {
+    console.warn("SMTP not configured. Skipping payment success email.", { to: params.to, subject });
+    return;
+  }
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: params.to,
+    subject,
+    html,
+    text,
+    attachments: [
+      {
+        filename: `Invoice-${params.invoiceId}.pdf`,
+
+        path: params.pdfPath,
+        contentType: 'application/pdf',
+      },
+    ],
+  });
 };

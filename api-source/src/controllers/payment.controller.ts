@@ -844,6 +844,18 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             return;
         }
 
+        // Check for duplicate webhook (already success)
+        const [existingBillRows] = await connection.query<any[]>(
+            `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+            [orderId]
+        );
+        const existingBill = existingBillRows[0];
+        const wasAlreadySuccess = existingBill && existingBill.status === "success";
+        if (wasAlreadySuccess) {
+            response.status(409).json({ message: "Duplicate webhook: bill already marked as success." });
+            return;
+        }
+
         await connection.beginTransaction();
         transactionStarted = true;
 
@@ -853,82 +865,136 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                  data = CAST(? AS JSON),
                  status = ?,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE orderid = ?`,
+             WHERE orderid = ?
+               AND status != 'success'`,
             [txnId, JSON.stringify(request.body ?? {}), status, orderId]
         );
 
         if (result.affectedRows === 0) {
             await connection.rollback();
             transactionStarted = false;
-            response.status(404).json({ message: "Bill record not found for this order id." });
-            return;
+            return response.status(200).json({ message: "Already processed" });
         }
 
-        // PDF generation logic after bill is marked as success
+        // PDF generation and email will be done after commit
+        let billForEmail: any = null;
+        let emailPayload: any = null;
         if (status === "success") {
-            // Fetch all bill data for invoice
+            // Fetch all bill data for invoice (for after commit)
             const [billRows] = await connection.query<any[]>(
                 `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
                 [orderId]
             );
-            const bill = billRows[0];
+            billForEmail = billRows[0];
+        }
 
-            if (bill) {
-                // Update user order history as before
-                const purchasedSlugs = parseBillCartSlugs(bill.carts);
-                if (purchasedSlugs.length > 0) {
-                    const [userRows] = await connection.query<UserOrderHistoryRow[]>(
-                        `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
-                        [bill.uid]
-                    );
-                    const existingHistory = parseOrderHistory(userRows[0]?.order_history);
-                    const purchasedAt = new Date().toISOString();
-                    const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
-                    await connection.query(
-                        `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
-                        [JSON.stringify(nextHistory), bill.uid]
-                    );
+        await connection.commit();
+        transactionStarted = false;
+
+        // Now, after commit, send email if needed
+        if (status === "success" && billForEmail) {
+            // Update user order history as before
+            const purchasedSlugs = parseBillCartSlugs(billForEmail.carts);
+            if (purchasedSlugs.length > 0) {
+                const [userRows] = await db.query<UserOrderHistoryRow[]>(
+                    `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
+                    [billForEmail.uid]
+                );
+                const existingHistory = parseOrderHistory(userRows[0]?.order_history);
+                const purchasedAt = new Date().toISOString();
+                const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
+                await db.query(
+                    `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
+                    [JSON.stringify(nextHistory), billForEmail.uid]
+                );
+            }
+
+            // --- PDF GENERATION ---
+            try {
+                const path = await import("path");
+                const { generatePdfFromHtml } = await import("../utils/pdf.js");
+
+                // Extract data for template
+                let invoiceNo = "";
+                let billData = billForEmail;
+                let billJson: any = {};
+                try {
+                    billJson = typeof billData.data === "string" ? JSON.parse(billData.data) : billData.data;
+                    invoiceNo = billJson?.data?.order?.order_tags?.INVOICE || "";
+                } catch { }
+
+                // Parse cart items
+                let cart = typeof billData.carts === "string" ? JSON.parse(billData.carts) : billData.carts;
+                let cartItems: any[] = Array.isArray(cart?.cart_items) ? cart.cart_items : [];
+
+                // Build items HTML
+                let itemsHtml = cartItems.map((item: any) => `
+                    <tr>
+                        <td>
+                            <div class="product-name">${item.item_name}</div>
+                            <div class="product-desc">${item.item_description || ""}</div>
+                        </td>
+                        <td>${Array.isArray(item.item_tags) ? item.item_tags.join(", ") : ""}</td>
+                        <td>${item.item_quantity}</td>
+                        <td>₹${item.item_discounted_unit_price}</td>
+                        <td>₹${item.item_discounted_unit_price * item.item_quantity}</td>
+                    </tr>
+                `).join("");
+
+                // Dynamic payment method and details
+                let paymentMethod = "";
+                let paymentDetails = "";
+                const methodObj = billJson?.data?.payment?.payment_method;
+                if (methodObj && typeof methodObj === "object") {
+                    // Get the first key (Cashfree sends only one method per payment)
+                    const keys = Object.keys(methodObj);
+                    if (keys.length === 1) {
+                        const key = keys[0];
+                        const value = methodObj[key];
+                        switch (key) {
+                            case "upi":
+                                paymentMethod = "UPI";
+                                paymentDetails = `UPI ID: ${value.upi_id || ""}`;
+                                break;
+                            case "card":
+                                paymentMethod = "Card";
+                                paymentDetails = `Card: ${value.card_network || ""} ****${value.card_last4 || ""}`;
+                                break;
+                            case "netbanking":
+                                paymentMethod = "Netbanking";
+                                paymentDetails = `Bank: ${value.bank_name || ""}`;
+                                break;
+                            case "wallet":
+                                paymentMethod = "Wallet";
+                                paymentDetails = `Wallet: ${value.wallet_name || value.channel || ""}`;
+                                break;
+                            case "paylater":
+                                paymentMethod = "PayLater";
+                                paymentDetails = `Provider: ${value.provider || ""}`;
+                                break;
+                            case "emi":
+                                paymentMethod = "EMI";
+                                paymentDetails = `Bank: ${value.bank_name || ""}`;
+                                break;
+                            case "app":
+                                paymentMethod = value.channel || "App";
+                                paymentDetails = value.upi_id ? `UPI ID: ${value.upi_id}` : "";
+                                break;
+                            default:
+                                paymentMethod = key.charAt(0).toUpperCase() + key.slice(1);
+                                paymentDetails = Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(", ");
+                                break;
+                        }
+                    }
                 }
 
-                // --- PDF GENERATION ---
-                try {
-                    const path = await import("path");
-                    const { generatePdfFromHtml } = await import("../utils/pdf.js");
+                // Format date/time
+                const paymentTime = billJson?.data?.payment?.payment_time || billData.created_at;
+                const paymentTimeStr = new Date(paymentTime).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+                const createdDateStr = new Date(billData.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-                    // Extract data for template
-                    let invoiceNo = "";
-                    let billData = bill;
-                    let billJson: any = {};
-                    try {
-                        billJson = typeof bill.data === "string" ? JSON.parse(bill.data) : bill.data;
-                        invoiceNo = billJson?.data?.order?.order_tags?.INVOICE || "";
-                    } catch { }
-
-                    // Parse cart items
-                    let cart = typeof bill.carts === "string" ? JSON.parse(bill.carts) : bill.carts;
-                    let cartItems: any[] = Array.isArray(cart?.cart_items) ? cart.cart_items : [];
-
-                    // Build items HTML
-                    let itemsHtml = cartItems.map((item: any) => `
-                        <tr>
-                            <td>
-                                <div class="product-name">${item.item_name}</div>
-                                <div class="product-desc">${item.item_description || ""}</div>
-                            </td>
-                            <td>${Array.isArray(item.item_tags) ? item.item_tags.join(", ") : ""}</td>
-                            <td>${item.item_quantity}</td>
-                            <td>₹${item.item_discounted_unit_price}</td>
-                            <td>₹${item.item_discounted_unit_price * item.item_quantity}</td>
-                        </tr>
-                    `).join("");
-
-                    // Format date/time
-                    const paymentTime = billJson?.data?.payment?.payment_time || bill.created_at;
-                    const paymentTimeStr = new Date(paymentTime).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
-                    const createdDateStr = new Date(bill.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-                    // Inline HTML template
-                    let html = `<!DOCTYPE html>
+                // Inline HTML template
+                let html = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -950,7 +1016,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             </div>
             <div class="meta">
                 <div><b>Invoice:</b> ${invoiceNo}</div>
-                <div><b>Order ID:</b> ${bill.orderid}</div>
+                <div><b>Order ID:</b> ${billData.orderid}</div>
                 <div><b>Date:</b> ${createdDateStr}</div>
                 <div class="status">Completed</div>
             </div>
@@ -961,13 +1027,13 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 ${billJson?.data?.customer_details?.customer_name || ""}<br>
                 ${billJson?.data?.customer_details?.customer_email || ""}<br>
                 ${billJson?.data?.customer_details?.customer_phone || ""}<br>
-                ${bill.billing_address || ""}<br>
+                ${billData.billing_address || ""}<br>
                 India
             </div>
             <div class="box">
                 <div class="title">Payment Info</div>
-                Method: UPI<br>
-                UPI ID: ${billJson?.data?.payment?.payment_method?.upi?.upi_id || ""}<br>
+                Method: ${paymentMethod}<br>
+                ${paymentDetails ? paymentDetails + '<br>' : ''}
                 Payment ID: ${billJson?.data?.payment?.cf_payment_id || ""}<br>
                 Bank Ref: ${billJson?.data?.payment?.bank_reference || ""}<br>
                 Time: ${paymentTimeStr}
@@ -992,19 +1058,19 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             <div class="total">
                 <div class="total-row">
                     <span>Price (incl. GST & fees)</span>
-                    <span>₹${bill.total}</span>
+                    <span>₹${billData.total}</span>
                 </div>
                 <div class="gst-row">
-                    <span>GST included (${bill.gst_percent}%)</span>
-                    <span>₹${bill.gst_amount}</span>
+                    <span>GST included (${billData.gst_percent}%)</span>
+                    <span>₹${billData.gst_amount}</span>
                 </div>
                 <div class="fees-row">
-                    <span>Gateway Fee (${bill.gateway_fee ? ((bill.gateway_fee / bill.total) * 100).toFixed(0) : 2}%)</span>
-                    <span>₹${bill.gateway_fee}</span>
+                    <span>Gateway Fee (${billData.gateway_fee ? ((billData.gateway_fee / billData.total) * 100).toFixed(0) : 2}%)</span>
+                    <span>₹${billData.gateway_fee}</span>
                 </div>
                 <div class="total-row grand-total">
                     <span>Total</span>
-                    <span>₹${bill.total}</span>
+                    <span>₹${billData.total}</span>
                 </div>
             </div>
         </div>
@@ -1015,21 +1081,43 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
 </body>
 </html>`;
 
-                    // Output path
-                    const invoiceId = invoiceNo || bill.orderid;
-                    const userId = bill.uid;
-                    const outputDir = path.resolve("public/bills", userId);
-                    const outputPath = path.join(outputDir, `${invoiceId}.pdf`);
+                // Output path
+                const invoiceId = invoiceNo || billData.orderid;
+                const userId = billData.uid;
+                const outputDir = path.resolve("public/bills", userId);
+                const outputPath = path.join(outputDir, `${invoiceId}.pdf`);
 
-                    await generatePdfFromHtml(html, outputPath);
-                } catch (pdfErr) {
-                    console.error("PDF generation failed:", pdfErr);
+                await generatePdfFromHtml(html, outputPath);
+
+                // Send payment success email with PDF
+                try {
+                    const { sendPaymentSuccessEmail } = await import("../services/auth-mail.service.js");
+                    const customerEmail = billJson?.data?.customer_details?.customer_email || billJson?.data?.customer_details?.email || "";
+                    const customerName = billJson?.data?.customer_details?.customer_name || billJson?.data?.customer_details?.name || "Customer";
+                    const orderIdVal = billData.orderid;
+                    const invoiceIdVal = invoiceNo || billData.orderid;
+                    const amountVal = billData.total;
+                    const paymentMethodVal = paymentMethod;
+                    const paymentTimeVal = paymentTimeStr;
+                    if (customerEmail) {
+                        await sendPaymentSuccessEmail({
+                            to: customerEmail,
+                            name: customerName,
+                            orderId: orderIdVal,
+                            invoiceId: invoiceIdVal,
+                            amount: amountVal,
+                            paymentMethod: paymentMethodVal,
+                            paymentTime: paymentTimeVal,
+                            pdfPath: outputPath,
+                        });
+                    }
+                } catch (mailErr) {
+                    console.error("Payment success email failed:", mailErr);
                 }
+            } catch (pdfErr) {
+                console.error("PDF generation failed:", pdfErr);
             }
         }
-
-        await connection.commit();
-        transactionStarted = false;
 
         response.status(200).json({
             message: "Webhook received and bill updated.",
