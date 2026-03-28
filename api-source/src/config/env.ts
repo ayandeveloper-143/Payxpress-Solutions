@@ -61,4 +61,9 @@ export const env = {
     jwtActionSecret:
         process.env.JWT_ACTION_SECRET ?? process.env.JWT_ACCESS_SECRET ?? "payxpress-dev-action-secret-change-in-prod",
     jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY ?? "7d",
+
+    // GST and Gateway Fee
+    gstType: (process.env.GST_TYPE ?? "extra").toLowerCase(),
+    gstPercent: toNumber(process.env.GST_PERCENT, 18),
+    gatewayFeePercent: toNumber(process.env.GATEWAY_FEE_PERCENT, 0),
 };

@@ -1,2 +1,0 @@
-ALTER TABLE bills
-ADD COLUMN IF NOT EXISTS billing_address JSON DEFAULT NULL AFTER carts;

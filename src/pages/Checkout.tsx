@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiBaseUrl } from "@/lib/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -6,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -29,13 +31,46 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 const Checkout = () => {
   const navigate = useNavigate();
   const { cart, getTotalPrice } = useCart();
+  const [breakdown, setBreakdown] = useState(null);
+
+  // Fetch breakdown for current cart (not just after submit)
+  useEffect(() => {
+    if (cart.length === 0) {
+      setBreakdown(null);
+      return;
+    }
+    const fetchBreakdown = async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/cart/breakdown`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cart }),
+        });
+        if (res.ok) {
+          setBreakdown(await res.json());
+        } else {
+          setBreakdown(null);
+        }
+      } catch {
+        setBreakdown(null);
+      }
+    };
+    fetchBreakdown();
+  }, [cart]);
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Device-aware login redirect/popup
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/", { replace: true });
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        navigate("/auth", { replace: true });
+      } else {
+        // Show login popup/modal (to be implemented)
+        window.dispatchEvent(new CustomEvent("show-login-popup"));
+      }
     }
   }, [isLoggedIn, navigate]);
 
@@ -86,9 +121,8 @@ const Checkout = () => {
         orderNote: `Order by ${values.name}`,
       });
 
-      if (result.success) {
-        const query = result.orderId ? `?order_id=${encodeURIComponent(result.orderId)}` : "";
-        navigate(`/payment-success${query}`);
+      if (result.success === true && result.orderId) {
+        navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}`);
       } else {
         toast({
           title: "Payment Failed",
@@ -227,19 +261,37 @@ const Checkout = () => {
                 </div>
 
                 <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-medium">{getTotalPrice()}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span className="font-medium text-muted-foreground">Free</span>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4 flex items-center justify-between">
-                  <span className="text-base font-semibold">Total</span>
-                  <span className="text-xl font-bold text-foreground">{getTotalPrice()}</span>
+                  {breakdown === null ? (
+                    <>
+                      <Skeleton className="h-6 w-2/3 mb-2" />
+                      <Skeleton className="h-6 w-2/3 mb-2" />
+                      <Skeleton className="h-6 w-2/3 mb-2" />
+                      <Skeleton className="h-8 w-1/2" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="font-medium">₹{breakdown.subtotal?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">GST ({breakdown.gstPercent}%)</span>
+                        <span className="font-medium">₹{breakdown.gstAmount?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Gateway Fee ({breakdown.gatewayFeePercent}%)</span>
+                        <span className="font-medium">₹{breakdown.gatewayFee?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Shipping</span>
+                        <span className="font-medium text-muted-foreground">Free</span>
+                      </div>
+                      <div className="border-t pt-4 flex items-center justify-between">
+                        <span className="text-base font-semibold">Total</span>
+                        <span className="text-xl font-bold text-foreground">₹{breakdown.total?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </aside>

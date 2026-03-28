@@ -1,3 +1,81 @@
+// Calculate GST/gateway fee breakdown for a cart
+export const cartBreakdown = async (request: Request, response: Response) => {
+    try {
+        const parsed = cartSchema.safeParse(request.body);
+        if (!parsed.success) {
+            response.status(400).json({
+                message: "Invalid cart payload.",
+                errors: parsed.error.flatten().fieldErrors,
+            });
+            return;
+        }
+        const cart = parsed.data.cart;
+        // Calculate subtotal (displayed as base price if included)
+        const subtotal = Number(
+            cart.reduce((total, item) => {
+                const price = parseFloat(item.price.replace("₹", "").replace(",", ""));
+                return total + price * item.quantity;
+            }, 0).toFixed(2)
+        );
+        const gstPercent = env.gstPercent;
+        const gatewayFeePercent = env.gatewayFeePercent;
+        const gstType = env.gstType;
+
+        let basePrice = subtotal;
+        let gstAmount = 0, cgstAmount = 0, sgstAmount = 0, gatewayFee = 0, total = 0;
+
+        if (gstType === "included") {
+            // Calculate base price (without GST)
+            basePrice = Number((subtotal / (1 + gstPercent / 100)).toFixed(2));
+            gstAmount = Number((subtotal - basePrice).toFixed(2));
+            cgstAmount = Number((gstAmount / 2).toFixed(2));
+            sgstAmount = Number((gstAmount / 2).toFixed(2));
+            gatewayFee = Number(((subtotal * gatewayFeePercent) / 100).toFixed(2));
+            total = subtotal;
+        } else {
+            basePrice = subtotal;
+            gstAmount = Number(((subtotal * gstPercent) / 100).toFixed(2));
+            cgstAmount = Number((gstAmount / 2).toFixed(2));
+            sgstAmount = Number((gstAmount / 2).toFixed(2));
+            gatewayFee = Number((((subtotal + gstAmount) * gatewayFeePercent) / 100).toFixed(2));
+            total = subtotal + gstAmount + gatewayFee;
+        }
+
+        // Always return both breakdowns for UI clarity
+        const breakdown = {
+            type: gstType,
+            basePrice,
+            subtotal, // for reference
+            gstPercent,
+            gstAmount,
+            cgstAmount,
+            sgstAmount,
+            gatewayFeePercent,
+            gatewayFee,
+            total,
+            included: gstType === "included" ? {
+                basePrice,
+                gstAmount,
+                cgstAmount,
+                sgstAmount,
+                gatewayFee,
+                total,
+            } : null,
+            extra: gstType === "extra" ? {
+                basePrice,
+                gstAmount,
+                cgstAmount,
+                sgstAmount,
+                gatewayFee,
+                total,
+            } : null,
+        };
+        response.status(200).json(breakdown);
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Failed to calculate cart breakdown." });
+    }
+};
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";

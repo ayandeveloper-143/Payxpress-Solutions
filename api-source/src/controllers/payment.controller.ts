@@ -535,11 +535,70 @@ export const createCashfreeSession = async (request: Request, response: Response
         }
 
 
-        const orderAmount = Number(
+
+        // Calculate subtotal
+        const subtotal = Number(
             cartItems
                 .reduce((total, item) => total + item.item_discounted_unit_price * item.item_quantity, 0)
                 .toFixed(2)
         );
+
+        // GST and Gateway Fee Calculation
+        const gstPercent = env.gstPercent;
+        const gatewayFeePercent = env.gatewayFeePercent;
+        const gstType = env.gstType;
+
+        let gstAmount = 0, cgstAmount = 0, sgstAmount = 0, gatewayFee = 0, total = 0;
+
+        if (gstType === "included") {
+            // GST included in subtotal
+            gstAmount = Number((subtotal - (subtotal / (1 + gstPercent / 100))).toFixed(2));
+            cgstAmount = Number((gstAmount / 2).toFixed(2));
+            sgstAmount = Number((gstAmount / 2).toFixed(2));
+            gatewayFee = Number(((subtotal * gatewayFeePercent) / 100).toFixed(2));
+            total = subtotal;
+        } else {
+            // GST extra on subtotal
+            gstAmount = Number(((subtotal * gstPercent) / 100).toFixed(2));
+            cgstAmount = Number((gstAmount / 2).toFixed(2));
+            sgstAmount = Number((gstAmount / 2).toFixed(2));
+            gatewayFee = Number((((subtotal + gstAmount) * gatewayFeePercent) / 100).toFixed(2));
+            total = subtotal + gstAmount + gatewayFee;
+        }
+
+        // For frontend: provide both breakdowns
+        const breakdown = {
+            type: gstType,
+            subtotal,
+            gstPercent,
+            gstAmount,
+            cgstAmount,
+            sgstAmount,
+            gatewayFeePercent,
+            gatewayFee,
+            total,
+            included: gstType === "included"
+                ? {
+                    subtotal,
+                    gstPercent,
+                    gstAmount,
+                    cgstAmount,
+                    sgstAmount,
+                    gatewayFeePercent,
+                    gatewayFee,
+                    total: subtotal
+                }
+                : {
+                    subtotal: subtotal + gstAmount,
+                    gstPercent,
+                    gstAmount,
+                    cgstAmount,
+                    sgstAmount,
+                    gatewayFeePercent,
+                    gatewayFee,
+                    total: subtotal + gstAmount + gatewayFee
+                }
+        };
 
         // Generate unique invoice id: INV-YYYYMMDDnnn (nnn = last 3 digits of ms timestamp)
         const today = new Date();
@@ -549,7 +608,7 @@ export const createCashfreeSession = async (request: Request, response: Response
         const ms = String(Date.now() % 1000).padStart(3, "0");
         const invoiceId = `INV-${y}${m}${d}${ms}`;
 
-        if (!Number.isFinite(orderAmount) || orderAmount <= 0) {
+        if (!Number.isFinite(subtotal) || subtotal <= 0) {
             response.status(400).json({ message: "Invalid order amount from cart." });
             return;
         }
@@ -568,7 +627,7 @@ export const createCashfreeSession = async (request: Request, response: Response
 
         const payload = {
             order_id: orderId,
-            order_amount: orderAmount,
+            order_amount: subtotal,
             order_currency: "INR",
             order_note: data.orderNote,
             customer_details: {
@@ -628,14 +687,22 @@ export const createCashfreeSession = async (request: Request, response: Response
             billingAddressRaw = data.billingAddress.address1;
         }
 
+
         await db.query(
-            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status)
-             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending')
+            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 uid = VALUES(uid),
                 carts = VALUES(carts),
                 billing_address = VALUES(billing_address),
                 data = VALUES(data),
+                gst_type = VALUES(gst_type),
+                gst_percent = VALUES(gst_percent),
+                gst_amount = VALUES(gst_amount),
+                cgst_amount = VALUES(cgst_amount),
+                sgst_amount = VALUES(sgst_amount),
+                gateway_fee = VALUES(gateway_fee),
+                total = VALUES(total),
                 status = 'pending',
                 updated_at = CURRENT_TIMESTAMP`,
             [
@@ -644,10 +711,18 @@ export const createCashfreeSession = async (request: Request, response: Response
                 JSON.stringify(payload.cart_details),
                 billingAddressRaw,
                 JSON.stringify(billSeedData),
+                gstType,
+                gstPercent,
+                gstAmount,
+                cgstAmount,
+                sgstAmount,
+                gatewayFee,
+                total
             ]
         );
 
         response.status(201).json({
+            breakdown,
             message: "Payment session created.",
             orderId: finalOrderId,
             paymentSessionId: responseData.payment_session_id,

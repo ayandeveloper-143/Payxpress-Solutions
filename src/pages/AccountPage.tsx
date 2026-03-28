@@ -24,7 +24,13 @@ const AccountPage = () => {
   const { user, isLoggedIn, isAuthLoading } = useAuth();
 
   if (!isAuthLoading && !isLoggedIn) {
-    return <Navigate to="/" replace />;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      return <Navigate to="/auth" replace />;
+    } else {
+      window.dispatchEvent(new CustomEvent("show-login-popup"));
+      return null;
+    }
   }
 
   const [activeTab, setActiveTab] = useState<Tab>("profile");
@@ -87,8 +93,8 @@ const AccountPage = () => {
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors text-left ${activeTab === tab.key
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                 >
                   {tab.icon}
@@ -275,8 +281,8 @@ const AccountPage = () => {
                           <td className="px-4 py-3">
                             <span
                               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-yellow-100 text-yellow-700"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-yellow-100 text-yellow-700"
                                 }`}
                             >
                               {bill.status}
@@ -304,8 +310,8 @@ const AccountPage = () => {
                         </div>
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-yellow-100 text-yellow-700"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-yellow-100 text-yellow-700"
                             }`}
                         >
                           {bill.status}

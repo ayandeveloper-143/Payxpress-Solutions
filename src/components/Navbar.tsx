@@ -17,6 +17,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { apiBaseUrl } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const links = [
   { label: "Home", to: "/" },
@@ -148,6 +150,31 @@ const Navbar = () => {
     </div>
   );
 
+  const [cartBreakdown, setCartBreakdown] = useState(null);
+  useEffect(() => {
+    if (cart.length === 0) {
+      setCartBreakdown(null);
+      return;
+    }
+    const fetchBreakdown = async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/cart/breakdown`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cart }),
+        });
+        if (res.ok) {
+          setCartBreakdown(await res.json());
+        } else {
+          setCartBreakdown(null);
+        }
+      } catch {
+        setCartBreakdown(null);
+      }
+    };
+    fetchBreakdown();
+  }, [cart]);
+
   const renderCartPanel = () => (
     <div className="h-full flex flex-col">
       <SheetHeader className="p-6 border-b">
@@ -211,10 +238,38 @@ const Navbar = () => {
       </div>
 
       <div className="border-t p-6 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-base font-semibold text-foreground">{getTotalPrice()}</span>
-        </div>
+        {cart.length === 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Total</span>
+            <span className="text-base font-semibold text-foreground">₹0</span>
+          </div>
+        ) : cartBreakdown === null ? (
+          <>
+            <Skeleton className="h-6 w-2/3 mb-2" />
+            <Skeleton className="h-6 w-2/3 mb-2" />
+            <Skeleton className="h-6 w-2/3 mb-2" />
+            <Skeleton className="h-8 w-1/2" />
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Subtotal</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.subtotal?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">GST ({cartBreakdown.gstPercent}%)</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.gstAmount?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Gateway Fee ({cartBreakdown.gatewayFeePercent}%)</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.gatewayFee?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.total?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+            </div>
+          </>
+        )}
         {isLoggedIn ? (
           <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={cart.length === 0}>
             <Link to="/checkout">Proceed to Checkout</Link>
