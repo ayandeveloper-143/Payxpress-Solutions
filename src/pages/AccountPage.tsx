@@ -9,7 +9,7 @@ import { fetchBillsHistory, Bill } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 type Tab = "profile" | "security" | "billing";
 
@@ -29,7 +29,20 @@ const AccountPage = () => {
   }
 
 
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Determine tab from URL
+  const getTabFromPath = (pathname: string): Tab => {
+    if (pathname.endsWith("/billing")) return "billing";
+    if (pathname.endsWith("/security")) return "security";
+    return "profile";
+  };
+  const [activeTab, setActiveTab] = useState<Tab>(getTabFromPath(location.pathname));
+
+  // Sync tab with URL changes
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
   // Bills state for UI
   const [bills, setBills] = useState<Bill[]>([]);
   const [billsLoading, setBillsLoading] = useState(false);
@@ -50,20 +63,14 @@ const AccountPage = () => {
     }
   }, []);
 
-  // Refresh bills when billing tab is opened
+  // Only fetch bills once when billing tab is first opened
+  const [billsFetched, setBillsFetched] = useState(false);
   useEffect(() => {
-    if (activeTab === "billing") {
+    if (activeTab === "billing" && !billsFetched) {
       fetchBills();
-      // Listen for tab visibility change to refresh
-      const onVisibility = () => {
-        if (document.visibilityState === "visible" && activeTab === "billing") {
-          fetchBills();
-        }
-      };
-      document.addEventListener("visibilitychange", onVisibility);
-      return () => document.removeEventListener("visibilitychange", onVisibility);
+      setBillsFetched(true);
     }
-  }, [activeTab, fetchBills]);
+  }, [activeTab, billsFetched, fetchBills]);
 
   const [name, setName] = useState(user?.name ?? "");
   const [email] = useState(user?.email ?? "");
@@ -121,7 +128,14 @@ const AccountPage = () => {
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => {
+                    // Update URL on tab click
+                    if (tab.key === "profile") {
+                      navigate("/account");
+                    } else {
+                      navigate(`/account/${tab.key}`);
+                    }
+                  }}
                   className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors text-left ${activeTab === tab.key
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -313,7 +327,15 @@ const AccountPage = () => {
                         ))
                         : bills.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center py-6 text-muted-foreground">No bills found.</td>
+                            <td colSpan={6} className="text-center py-10">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                                  <Receipt size={32} className="text-muted-foreground" />
+                                </div>
+                                <div className="font-semibold text-foreground">No bills found</div>
+                                <div className="text-xs text-muted-foreground">You have not made any purchases yet.</div>
+                              </div>
+                            </td>
                           </tr>
                         ) : (
                           bills.map((bill, idx) => (
@@ -349,7 +371,13 @@ const AccountPage = () => {
                       </div>
                     ))
                     : bills.length === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground">No bills found.</div>
+                      <div className="flex flex-col items-center justify-center py-10 gap-2">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                          <Receipt size={32} className="text-muted-foreground" />
+                        </div>
+                        <div className="font-semibold text-foreground">No bills found</div>
+                        <div className="text-xs text-muted-foreground">You have not made any purchases yet.</div>
+                      </div>
                     ) : (
                       bills.map((bill) => (
                         <div key={bill.orderId} className="rounded-xl border bg-background p-4 space-y-3">
