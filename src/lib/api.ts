@@ -307,3 +307,22 @@ export const fetchBillsHistory = () =>
         method: "GET",
         requiresAuth: true,
     });
+
+export interface ChangePasswordPayload {
+    currentPassword: string;
+    newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+    message: string;
+}
+
+export const changePassword = (payload: ChangePasswordPayload) =>
+    request<ChangePasswordResponse>("/auth/change-password", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        requiresAuth: true,
+        body: JSON.stringify(payload),
+    });

@@ -271,12 +271,12 @@ const Checkout = () => {
                   ) : (
                     <>
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Subtotal</span>
-                        <span className="font-medium">₹{breakdown.subtotal?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                        <span className="text-muted-foreground">Price (incl. GST & fees)</span>
+                        <span className="font-medium">₹{breakdown.price?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">GST ({breakdown.gstPercent}%)</span>
-                        <span className="font-medium">₹{breakdown.gstAmount?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                        <span className="text-muted-foreground">GST included ({breakdown.gstPercent}%)</span>
+                        <span className="font-medium">₹{breakdown.gstIncluded?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Gateway Fee ({breakdown.gatewayFeePercent}%)</span>

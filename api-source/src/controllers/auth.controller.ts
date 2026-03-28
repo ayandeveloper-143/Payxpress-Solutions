@@ -715,3 +715,47 @@ export const logout = async (request: Request, response: Response) => {
         });
     }
 };
+
+export const changePassword = async (request: Request, response: Response) => {
+    try {
+        const { currentPassword, newPassword } = request.body;
+        if (!currentPassword || !newPassword) {
+            response.status(400).json({ message: "Current and new password are required." });
+            return;
+        }
+        // Get user from token
+        const token = getBearerToken(request);
+        if (!token) {
+            response.status(401).json({ message: "Missing access token." });
+            return;
+        }
+        const tokenPayload = verifyAccessToken(token);
+        if (!tokenPayload) {
+            response.status(401).json({ message: "Invalid or expired access token." });
+            return;
+        }
+        // Fetch user
+        const [rows] = await db.query(
+            `SELECT id, uuid, password_hash FROM users WHERE uuid = ? LIMIT 1`,
+            [tokenPayload.sub]
+        );
+        const user = (rows as UserRecord[])[0];
+        if (!user) {
+            response.status(404).json({ message: "User not found." });
+            return;
+        }
+        // Check current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isMatch) {
+            response.status(400).json({ message: "Current password is incorrect." });
+            return;
+        }
+        // Update password
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+        await db.execute(`UPDATE users SET password_hash = ?, updated_at = NOW() WHERE uuid = ?`, [newPasswordHash, user.uuid]);
+        response.status(200).json({ message: "Password updated successfully." });
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Unable to change password right now." });
+    }
+};

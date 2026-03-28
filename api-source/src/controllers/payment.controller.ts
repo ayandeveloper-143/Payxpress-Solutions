@@ -549,14 +549,18 @@ export const createCashfreeSession = async (request: Request, response: Response
         const gstType = env.gstType;
 
         let gstAmount = 0, cgstAmount = 0, sgstAmount = 0, gatewayFee = 0, total = 0;
+        let netAfterGST = 0, netAfterGateway = 0;
 
         if (gstType === "included") {
             // GST included in subtotal
-            gstAmount = Number((subtotal - (subtotal / (1 + gstPercent / 100))).toFixed(2));
+            // Use same logic as cart.controller.ts for accounting clarity
+            total = subtotal;
+            gstAmount = Number((total - (total / (1 + gstPercent / 100))).toFixed(2));
+            netAfterGST = Number((total - gstAmount).toFixed(2));
+            gatewayFee = Number((total * gatewayFeePercent / 100).toFixed(2));
+            netAfterGateway = Number((netAfterGST - gatewayFee).toFixed(2));
             cgstAmount = Number((gstAmount / 2).toFixed(2));
             sgstAmount = Number((gstAmount / 2).toFixed(2));
-            gatewayFee = Number(((subtotal * gatewayFeePercent) / 100).toFixed(2));
-            total = subtotal;
         } else {
             // GST extra on subtotal
             gstAmount = Number(((subtotal * gstPercent) / 100).toFixed(2));
@@ -566,39 +570,44 @@ export const createCashfreeSession = async (request: Request, response: Response
             total = subtotal + gstAmount + gatewayFee;
         }
 
-        // For frontend: provide both breakdowns
-        const breakdown = {
-            type: gstType,
-            subtotal,
-            gstPercent,
-            gstAmount,
-            cgstAmount,
-            sgstAmount,
-            gatewayFeePercent,
-            gatewayFee,
-            total,
-            included: gstType === "included"
-                ? {
-                    subtotal,
-                    gstPercent,
-                    gstAmount,
-                    cgstAmount,
-                    sgstAmount,
-                    gatewayFeePercent,
+        // For frontend: provide included model breakdown (matches cart.controller.ts)
+        let breakdown;
+        if (gstType === "included") {
+            breakdown = {
+                type: "included",
+                label: "Price (incl. GST & fees)",
+                price: total,
+                gstPercent,
+                gstIncluded: gstAmount,
+                gatewayFeePercent,
+                gatewayFee,
+                netAfterGST,
+                netAfterGateway,
+                total,
+                breakdown: {
+                    total,
+                    gstIncluded: gstAmount,
+                    cgst: cgstAmount,
+                    sgst: sgstAmount,
                     gatewayFee,
-                    total: subtotal
-                }
-                : {
-                    subtotal: subtotal + gstAmount,
-                    gstPercent,
-                    gstAmount,
-                    cgstAmount,
-                    sgstAmount,
-                    gatewayFeePercent,
-                    gatewayFee,
-                    total: subtotal + gstAmount + gatewayFee
-                }
-        };
+                    netRevenue: netAfterGateway
+                },
+                message: "All taxes and charges included."
+            };
+        } else {
+            breakdown = {
+                type: "extra",
+                subtotal,
+                gstPercent,
+                gstAmount,
+                cgstAmount,
+                sgstAmount,
+                gatewayFeePercent,
+                gatewayFee,
+                total,
+                message: "Taxes and charges are added on top."
+            };
+        }
 
         // Generate unique invoice id: INV-YYYYMMDDnnn (nnn = last 3 digits of ms timestamp)
         const today = new Date();

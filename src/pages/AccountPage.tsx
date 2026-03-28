@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { changePassword } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 type Tab = "profile" | "security" | "billing";
-
-
 
 const AccountPage = () => {
   const { user, isLoggedIn, isAuthLoading } = useAuth();
@@ -81,6 +81,32 @@ const AccountPage = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const { toast } = useToast();
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({ title: "All fields are required", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      await changePassword({ currentPassword, newPassword });
+      toast({ title: "Password updated successfully" });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast({ title: err?.message || "Failed to update password", variant: "destructive" });
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "profile", label: "Profile", icon: <User size={16} /> },
@@ -208,7 +234,7 @@ const AccountPage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-5 max-w-md">
+                <form onSubmit={handleChangePassword} className="space-y-5 max-w-md">
                   {/* Current Password */}
                   <div className="space-y-2">
                     <Label htmlFor="current-password">Current Password</Label>
@@ -231,7 +257,6 @@ const AccountPage = () => {
                       </button>
                     </div>
                   </div>
-
                   {/* New Password */}
                   <div className="space-y-2">
                     <Label htmlFor="new-password">New Password</Label>
@@ -254,7 +279,6 @@ const AccountPage = () => {
                       </button>
                     </div>
                   </div>
-
                   {/* Confirm Password */}
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password">Confirm New Password</Label>
@@ -277,13 +301,12 @@ const AccountPage = () => {
                       </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-                    Update Password
-                  </Button>
-                </div>
+                  <div className="flex justify-end">
+                    <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all" disabled={passwordLoading}>
+                      {passwordLoading ? "Updating..." : "Update Password"}
+                    </Button>
+                  </div>
+                </form>
               </ScrollReveal>
             )}
 

@@ -253,12 +253,12 @@ const Navbar = () => {
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Subtotal</span>
-              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.subtotal?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+              <span className="text-sm text-muted-foreground">Price (incl. GST & fees)</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.price?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">GST ({cartBreakdown.gstPercent}%)</span>
-              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.gstAmount?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+              <span className="text-sm text-muted-foreground">GST included ({cartBreakdown.gstPercent}%)</span>
+              <span className="text-base font-semibold text-foreground">₹{cartBreakdown.gstIncluded?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Gateway Fee ({cartBreakdown.gatewayFeePercent}%)</span>

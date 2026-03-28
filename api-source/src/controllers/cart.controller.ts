@@ -41,36 +41,56 @@ export const cartBreakdown = async (request: Request, response: Response) => {
             total = subtotal + gstAmount + gatewayFee;
         }
 
-        // Always return both breakdowns for UI clarity
-        const breakdown = {
-            type: gstType,
-            basePrice,
-            subtotal, // for reference
-            gstPercent,
-            gstAmount,
-            cgstAmount,
-            sgstAmount,
-            gatewayFeePercent,
-            gatewayFee,
-            total,
-            included: gstType === "included" ? {
+        // Return only the included model breakdown for UI clarity
+        if (gstType === "included") {
+            // Accounting breakdown
+            // total = price (includes GST + gateway fee)
+            // gstAmount = total * gstPercent / (100 + gstPercent)
+            // netAfterGST = total - gstAmount
+            // gatewayFee = total * gatewayFeePercent / 100
+            // netAfterGateway = netAfterGST - gatewayFee
+            // cgst/sgst = gstAmount / 2
+            const netAfterGST = Number((total - gstAmount).toFixed(2));
+            const netAfterGateway = Number((netAfterGST - gatewayFee).toFixed(2));
+            const cgst = Number((gstAmount / 2).toFixed(2));
+            const sgst = Number((gstAmount / 2).toFixed(2));
+            response.status(200).json({
+                type: "included",
+                label: "Price (incl. GST & fees)",
+                price: total,
+                gstPercent,
+                gstIncluded: gstAmount,
+                gatewayFeePercent,
+                gatewayFee,
+                netAfterGST,
+                netAfterGateway,
+                total,
+                breakdown: {
+                    total,
+                    gstIncluded: gstAmount,
+                    cgst,
+                    sgst,
+                    gatewayFee,
+                    netRevenue: netAfterGateway
+                },
+                message: "All taxes and charges included."
+            });
+        } else {
+            // Fallback: return the extra model if ever needed
+            response.status(200).json({
+                type: "extra",
                 basePrice,
+                subtotal,
+                gstPercent,
                 gstAmount,
                 cgstAmount,
                 sgstAmount,
+                gatewayFeePercent,
                 gatewayFee,
                 total,
-            } : null,
-            extra: gstType === "extra" ? {
-                basePrice,
-                gstAmount,
-                cgstAmount,
-                sgstAmount,
-                gatewayFee,
-                total,
-            } : null,
-        };
-        response.status(200).json(breakdown);
+                message: "Taxes and charges are added on top."
+            });
+        }
     } catch (error) {
         console.error(error);
         response.status(500).json({ message: "Failed to calculate cart breakdown." });
