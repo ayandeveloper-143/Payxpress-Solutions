@@ -1,7 +1,7 @@
 import { ApiRequestError } from "@/lib/api";
 import { apiBaseUrl } from "@/lib/api";
 
-export async function downloadProductFile(productSlug: string): Promise<string> {
+export async function downloadProductFile(productSlug: string): Promise<void> {
     const response = await fetch(`${apiBaseUrl}/download/${productSlug}`, {
         method: "GET",
         headers: {
@@ -10,17 +10,39 @@ export async function downloadProductFile(productSlug: string): Promise<string> 
     });
 
     if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
+        // Try to parse error JSON, fallback to text
+        let message = "Download failed.";
+        try {
+            const data = await response.json();
+            message = data.message || message;
+        } catch {
+            try {
+                message = await response.text();
+            } catch { }
+        }
         throw new ApiRequestError({
-            message: data.message || "Download failed.",
+            message,
             status: response.status,
-            code: data.code,
-            field: data.field,
-            errors: data.errors,
         });
     }
 
-    const { url } = await response.json();
-    if (!url) throw new ApiRequestError({ message: "No file URL returned.", status: 500 });
-    return url;
+    // Get filename from Content-Disposition header
+    const disposition = response.headers.get("Content-Disposition");
+    let filename = "download.zip";
+    if (disposition) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match) filename = match[1];
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }, 100);
 }

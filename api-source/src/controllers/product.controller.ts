@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import path from "node:path";
+import fs from "node:fs";
 
 // Helper to verify access token and get user UUID
 const getBearerToken = (request: Request) => {
@@ -74,7 +76,7 @@ export const downloadProductFile = async (request: Request, response: Response) 
         return;
     }
 
-    // 3. Get product file URL from products table
+    // 3. Get product file path from products table
     const [products] = await db.query<any[]>(
         `SELECT product_file FROM products WHERE slug = ? AND is_active = 1 LIMIT 1`,
         [slug]
@@ -83,7 +85,22 @@ export const downloadProductFile = async (request: Request, response: Response) 
         response.status(404).json({ message: "Project file not found. Please contact customer support." });
         return;
     }
-    response.json({ url: products[0].product_file });
+    const filePath = products[0].product_file;
+    // Only allow files inside /public/projects
+    const safeBase = path.resolve(process.cwd(), "public/projects");
+    const resolvedPath = path.resolve(process.cwd(), filePath.replace(/^\/+/, ""));
+    if (!resolvedPath.startsWith(safeBase)) {
+        response.status(403).json({ message: "Invalid file path." });
+        return;
+    }
+    if (!fs.existsSync(resolvedPath)) {
+        response.status(404).json({ message: "File not found on server." });
+        return;
+    }
+    response.setHeader("Content-Disposition", `attachment; filename="${path.basename(resolvedPath)}"`);
+    response.setHeader("Content-Type", "application/zip");
+    const stream = fs.createReadStream(resolvedPath);
+    stream.pipe(response);
 };
 import type { Request, Response } from "express";
 import { db } from "../config/db.js";

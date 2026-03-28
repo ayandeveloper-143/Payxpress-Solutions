@@ -158,13 +158,7 @@ const ProductDetails = () => {
                 title: "Download started",
                 description: `${product.title} is being prepared for download.`,
             });
-            const url = await downloadProductFile(product.slug);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            await downloadProductFile(product.slug);
             toast({
                 title: "Download Ready",
                 description: `${product.title} download started!`,

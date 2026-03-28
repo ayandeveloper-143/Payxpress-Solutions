@@ -67,13 +67,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
         title: "Download started",
         description: `${title} is being prepared for download.`,
       });
-      const url = await downloadProductFile(slug);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await downloadProductFile(slug);
       toast({
         title: "Download Ready",
         description: `${title} download started!`,

@@ -50,14 +50,7 @@ const OrdersPage = () => {
         title: "Download started",
         description: `${productTitle} is being prepared for download.`,
       });
-      const url = await downloadProductFile(productSlug);
-      // Trigger file download
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await downloadProductFile(productSlug);
       toast({
         title: "Download Ready",
         description: `${productTitle} download started!`,
