@@ -440,7 +440,7 @@ const AccountPage = () => {
                             </div>
                             <Button
                               type="button"
-                              className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                              className="w-auto px-4 bg-accent text-accent-foreground hover:bg-accent/90"
                               isLoading={downloading === bill.invoiceNo}
                               disabled={downloading === bill.invoiceNo}
                               onClick={() => handleDownload(bill.invoiceNo)}
