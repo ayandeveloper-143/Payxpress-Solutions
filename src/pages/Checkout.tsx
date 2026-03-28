@@ -76,28 +76,18 @@ const Checkout = () => {
     try {
       setIsProcessing(true);
 
-      // Calculate total amount in INR for Cashfree order creation.
-      const totalAmount = cart.reduce((acc, item) => {
-        const price = parseFloat(item.price.replace("₹", "").replace(",", ""));
-        return acc + price * item.quantity;
-      }, 0);
-
-      const orderId = `ORDER_${Date.now()}`;
-      const customerId = `CUST_${Date.now()}`;
-
       // Call Cashfree payment
       const result = await handleCashfreePayment({
-        orderId,
-        customerId,
         customerName: values.name,
         customerEmail: values.email,
         customerPhone: values.phone,
-        orderAmount: totalAmount,
-        orderCurrency: "INR",
+        billingAddress: values.address?.trim() || undefined,
         orderNote: `Order by ${values.name}`,
       });
 
       if (result.success) {
+        const query = result.orderId ? `?order_id=${encodeURIComponent(result.orderId)}` : "";
+        navigate(`/payment-success${query}`);
       } else {
         toast({
           title: "Payment Failed",

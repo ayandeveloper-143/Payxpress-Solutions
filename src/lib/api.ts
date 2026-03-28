@@ -85,13 +85,11 @@ export interface ContactResponse {
 }
 
 export interface CreateCashfreeSessionPayload {
-    orderId: string;
-    orderAmount: number;
-    orderCurrency: string;
-    customerId: string;
-    customerName?: string;
+    orderId?: string;
+    customerName: string;
     customerEmail: string;
     customerPhone: string;
+    billingAddress?: string;
     orderNote?: string;
 }
 
@@ -99,6 +97,12 @@ export interface CreateCashfreeSessionResponse {
     message: string;
     orderId: string;
     paymentSessionId: string;
+}
+
+export interface CashfreeOrderStatusResponse {
+    orderId: string;
+    orderStatus: "Success" | "Pending" | "Failure";
+    transactions: Array<{ payment_status?: string }>;
 }
 
 export interface AuthUserResponse {
@@ -198,7 +202,13 @@ export const createCashfreeSession = (payload: CreateCashfreeSessionPayload) =>
         headers: {
             "Content-Type": "application/json",
         },
+        requiresAuth: true,
         body: JSON.stringify(payload),
+    });
+
+export const fetchCashfreeOrderStatus = (orderId: string) =>
+    request<CashfreeOrderStatusResponse>(`/payments/cashfree/orders/${encodeURIComponent(orderId)}/status`, {
+        method: "GET",
     });
 
 export const loginUser = (payload: LoginPayload) =>

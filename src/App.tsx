@@ -23,6 +23,7 @@ import ProductsPage from "./pages/ProductsPage.tsx";
 import CustomSolutionsPage from "./pages/CustomSolutionsPage.tsx";
 import Auth from "./pages/Auth.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import PaymentSuccess from "./pages/PaymentSuccess.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
 import OrdersPage from "./pages/OrdersPage.tsx";
@@ -67,6 +68,7 @@ const AppRoutes = () => {
         <Route path="/auth" element={<Auth />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
@@ -84,10 +86,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>
-              <PurchasedProvider>
-                <AppRoutes />
-              </PurchasedProvider>
-            </CartProvider>
+            <PurchasedProvider>
+              <AppRoutes />
+            </PurchasedProvider>
+          </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

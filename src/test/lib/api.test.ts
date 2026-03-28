@@ -172,14 +172,14 @@ describe("submitContact", () => {
 describe("createCashfreeSession", () => {
   it("posts to /payments/cashfree/session and returns session data", async () => {
     const response = { message: "Created", orderId: "ord-1", paymentSessionId: "sess-abc" };
+    localStorage.setItem("auth_token", "payment-token");
     mockFetch.mockResolvedValue(makeResponse(response));
     const payload = {
       orderId: "ord-1",
-      orderAmount: 499,
-      orderCurrency: "INR",
-      customerId: "cust-1",
+      customerName: "Alice",
       customerEmail: "user@example.com",
       customerPhone: "9999999999",
+      billingAddress: "123 Main Street, Jaipur",
     };
     const result = await createCashfreeSession(payload);
     expect(result.paymentSessionId).toBe("sess-abc");
@@ -187,6 +187,7 @@ describe("createCashfreeSession", () => {
     const [url, options] = mockFetch.mock.calls[0];
     expect(url).toContain("/payments/cashfree/session");
     expect(options.method).toBe("POST");
+    expect(options.headers.get("Authorization")).toBe("Bearer payment-token");
   });
 });
 

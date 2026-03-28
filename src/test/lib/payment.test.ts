@@ -17,11 +17,10 @@ import { handleCashfreePayment } from "@/lib/payment";
 
 const defaultParams = {
   orderId: "ord-1",
-  customerId: "cust-1",
+  customerName: "Test User",
   customerEmail: "test@test.com",
   customerPhone: "9999999999",
-  orderAmount: 1000,
-  orderCurrency: "INR",
+  billingAddress: "Street 1, City",
   orderNote: "Test order",
 };
 
@@ -70,7 +69,8 @@ describe("handleCashfreePayment", () => {
     });
     const result = await handleCashfreePayment(defaultParams);
     expect(result.success).toBe(true);
-    expect(result.message).toBe("Payment session started");
+    expect(result.message).toBe("Payment completed");
+    expect(result.orderId).toBe("ord-1");
     expect(mockCheckout).toHaveBeenCalledWith({
       paymentSessionId: "sess-abc",
       redirectTarget: "_modal",
@@ -86,18 +86,16 @@ describe("handleCashfreePayment", () => {
     const params = {
       ...defaultParams,
       orderId: "ord-2",
-      customerId: "cust-2",
       customerName: "Alice",
-      orderAmount: 4999,
+      billingAddress: "Block A, Sector 9",
       orderNote: "Premium order",
     };
     await handleCashfreePayment(params);
     expect(mockCreateSession).toHaveBeenCalledWith(
       expect.objectContaining({
         orderId: "ord-2",
-        customerId: "cust-2",
         customerName: "Alice",
-        orderAmount: 4999,
+        billingAddress: "Block A, Sector 9",
         orderNote: "Premium order",
       }),
     );
