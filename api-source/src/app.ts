@@ -8,6 +8,7 @@ import contactRouter from "./routes/contact.routes.js";
 import healthRouter from "./routes/health.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
+import billsRouter from "./routes/bills.routes.js";
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use("/api", contactRouter);
 app.use("/api", paymentRouter);
 app.use("/api", authRouter);
 app.use("/api", cartRouter);
+app.use("/api", billsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

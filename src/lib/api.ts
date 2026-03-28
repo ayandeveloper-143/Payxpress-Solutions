@@ -289,3 +289,21 @@ export const saveUserCart = (payload: SaveCartPayload) =>
         },
         body: JSON.stringify(payload),
     });
+
+export interface Bill {
+    invoiceNo: string;
+    amount: number;
+    date: string;
+    status: string;
+    orderId: string;
+}
+
+export interface BillsHistoryResponse {
+    bills: Bill[];
+}
+
+export const fetchBillsHistory = () =>
+    request<BillsHistoryResponse>("/bills/history", {
+        method: "GET",
+        requiresAuth: true,
+    });

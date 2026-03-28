@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Eye, EyeOff, Lock, Receipt, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchBillsHistory, Bill } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
@@ -11,14 +13,7 @@ import { Navigate } from "react-router-dom";
 
 type Tab = "profile" | "security" | "billing";
 
-const mockBills = [
-  { id: 1, invoiceNo: "INV-2024-001", amount: "₹4,999", date: "12 Jan 2024", method: "UPI", status: "Paid" },
-  { id: 2, invoiceNo: "INV-2024-002", amount: "₹9,499", date: "28 Feb 2024", method: "Credit Card", status: "Paid" },
-  { id: 3, invoiceNo: "INV-2024-003", amount: "₹2,999", date: "05 Apr 2024", method: "Net Banking", status: "Paid" },
-  { id: 4, invoiceNo: "INV-2024-004", amount: "₹7,499", date: "19 Jun 2024", method: "UPI", status: "Pending" },
-  { id: 5, invoiceNo: "INV-2024-005", amount: "₹14,999", date: "03 Sep 2024", method: "Debit Card", status: "Paid" },
-  { id: 6, invoiceNo: "INV-2025-001", amount: "₹5,999", date: "11 Jan 2025", method: "UPI", status: "Paid" },
-];
+
 
 const AccountPage = () => {
   const { user, isLoggedIn, isAuthLoading } = useAuth();
@@ -33,7 +28,42 @@ const AccountPage = () => {
     }
   }
 
+
   const [activeTab, setActiveTab] = useState<Tab>("profile");
+  // Bills state for UI
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [billsLoading, setBillsLoading] = useState(false);
+  const [billsError, setBillsError] = useState<string | null>(null);
+
+  // Fetch bills from API
+  const fetchBills = useCallback(async () => {
+    setBillsLoading(true);
+    setBillsError(null);
+    try {
+      const res = await fetchBillsHistory();
+      setBills(res.bills);
+    } catch (err: any) {
+      setBillsError(err?.message || "Failed to load bills");
+      setBills([]);
+    } finally {
+      setBillsLoading(false);
+    }
+  }, []);
+
+  // Refresh bills when billing tab is opened
+  useEffect(() => {
+    if (activeTab === "billing") {
+      fetchBills();
+      // Listen for tab visibility change to refresh
+      const onVisibility = () => {
+        if (document.visibilityState === "visible" && activeTab === "billing") {
+          fetchBills();
+        }
+      };
+      document.addEventListener("visibilitychange", onVisibility);
+      return () => document.removeEventListener("visibilitychange", onVisibility);
+    }
+  }, [activeTab, fetchBills]);
 
   const [name, setName] = useState(user?.name ?? "");
   const [email] = useState(user?.email ?? "");
@@ -265,70 +295,84 @@ const AccountPage = () => {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Invoice No.</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Method</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {mockBills.map((bill) => (
-                        <tr key={bill.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-3 text-muted-foreground">{bill.id}</td>
-                          <td className="px-4 py-3 font-medium text-foreground">{bill.invoiceNo}</td>
-                          <td className="px-4 py-3 font-semibold text-foreground">{bill.amount}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{bill.date}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{bill.method}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-yellow-100 text-yellow-700"
-                                }`}
-                            >
-                              {bill.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10">
-                              Download
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
+                      {billsLoading
+                        ? Array.from({ length: 3 }).map((_, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-3"><Skeleton className="h-4 w-6" /></td>
+                            <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                            <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                            <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                            <td className="px-4 py-3"><Skeleton className="h-4 w-14" /></td>
+                            <td className="px-4 py-3 text-right"><Skeleton className="h-7 w-20" /></td>
+                          </tr>
+                        ))
+                        : bills.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-6 text-muted-foreground">No bills found.</td>
+                          </tr>
+                        ) : (
+                          bills.map((bill, idx) => (
+                            <tr key={bill.orderId} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                              <td className="px-4 py-3 font-medium text-foreground">{bill.invoiceNo}</td>
+                              <td className="px-4 py-3 font-semibold text-foreground">₹{bill.amount}</td>
+                              <td className="px-4 py-3 text-muted-foreground">{new Date(bill.date).toLocaleString()}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700">Paid</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10" disabled>
+                                  Download
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Mobile Cards */}
                 <div className="sm:hidden space-y-3">
-                  {mockBills.map((bill) => (
-                    <div key={bill.id} className="rounded-xl border bg-background p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-foreground text-sm">{bill.invoiceNo}</p>
-                          <p className="text-xs text-muted-foreground">{bill.date}</p>
-                        </div>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bill.status === "Paid"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
-                            }`}
-                        >
-                          {bill.status}
-                        </span>
+                  {billsLoading
+                    ? Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="rounded-xl border bg-background p-4 space-y-3">
+                        <Skeleton className="h-4 w-24 mb-2" />
+                        <Skeleton className="h-4 w-16 mb-2" />
+                        <Skeleton className="h-4 w-20 mb-2" />
+                        <Skeleton className="h-7 w-20" />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <p className="text-base font-semibold text-foreground">{bill.amount}</p>
-                          <p className="text-xs text-muted-foreground">{bill.method}</p>
+                    ))
+                    : bills.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">No bills found.</div>
+                    ) : (
+                      bills.map((bill) => (
+                        <div key={bill.orderId} className="rounded-xl border bg-background p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-foreground text-sm">{bill.invoiceNo}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(bill.date).toLocaleString()}</p>
+                            </div>
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700">Paid</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <p className="text-base font-semibold text-foreground">₹{bill.amount}</p>
+                            </div>
+                            <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10" disabled>
+                              Download
+                            </Button>
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm" className="text-xs h-7 px-3 border-accent text-accent hover:bg-accent/10">
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                      ))
+                    )}
                 </div>
+                {billsError && <div className="text-red-500 text-sm pt-2">{billsError}</div>}
               </ScrollReveal>
             )}
           </div>

@@ -102,7 +102,7 @@ type UserOrderHistoryRow = RowDataPacket & {
 
 const hashAccessToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-const getBearerToken = (request: Request) => {
+export const getBearerToken = (request: Request) => {
     const authHeader = request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -113,7 +113,7 @@ const getBearerToken = (request: Request) => {
     return token.length > 0 ? token : null;
 };
 
-const verifyAccessToken = (token: string): AccessTokenPayload | null => {
+export const verifyAccessToken = (token: string): AccessTokenPayload | null => {
     try {
         const decoded = jwt.verify(token, env.jwtAccessSecret);
 
@@ -139,7 +139,7 @@ const verifyAccessToken = (token: string): AccessTokenPayload | null => {
     }
 };
 
-const isAccessTokenActive = async (params: { token: string; userUuid: string }) => {
+export const isAccessTokenActive = async (params: { token: string; userUuid: string }) => {
     const [rows] = await db.query(
         `SELECT id
          FROM auth_sessions
