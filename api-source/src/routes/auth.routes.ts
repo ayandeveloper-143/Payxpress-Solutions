@@ -8,6 +8,7 @@ import {
     signup,
     verifySignupLink,
     changePassword,
+    updateName,
 } from "../controllers/auth.controller.js";
 
 const authRouter = Router();
@@ -20,5 +21,6 @@ authRouter.post("/auth/logout", logout);
 authRouter.post("/auth/forgot-password/start", startForgotPassword);
 authRouter.post("/auth/forgot-password/reset", resetPasswordWithToken);
 authRouter.post("/auth/change-password", changePassword);
+authRouter.patch("/auth/update-name", updateName);
 
 export default authRouter;

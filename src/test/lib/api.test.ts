@@ -14,6 +14,7 @@ import {
   logoutUser,
   fetchUserCart,
   saveUserCart,
+  updateName,
 } from "@/lib/api";
 
 const mockFetch = vi.fn();
@@ -322,5 +323,20 @@ describe("saveUserCart", () => {
     expect(options.method).toBe("PUT");
     expect(JSON.parse(options.body)).toEqual({ cart });
     expect(options.headers.get("Authorization")).toBe("Bearer cart-tok");
+  });
+});
+
+describe("updateName", () => {
+  it("sends PATCH /auth/update-name with auth header and name payload", async () => {
+    localStorage.setItem("auth_token", "tok-name");
+    mockFetch.mockResolvedValue(makeResponse({ message: "Name updated successfully.", name: "Jane Doe" }));
+    const result = await updateName({ name: "Jane Doe" });
+    expect(result.message).toBe("Name updated successfully.");
+    expect(result.name).toBe("Jane Doe");
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/auth/update-name");
+    expect(options.method).toBe("PATCH");
+    expect(JSON.parse(options.body)).toEqual({ name: "Jane Doe" });
+    expect(options.headers.get("Authorization")).toBe("Bearer tok-name");
   });
 });

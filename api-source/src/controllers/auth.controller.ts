@@ -732,6 +732,41 @@ export const logout = async (request: Request, response: Response) => {
     }
 };
 
+export const updateName = async (request: Request, response: Response) => {
+    try {
+        const { name } = request.body;
+        if (!name || typeof name !== "string" || name.trim().length < 2) {
+            response.status(400).json({ message: "A valid name (at least 2 characters) is required." });
+            return;
+        }
+        const token = getBearerToken(request);
+        if (!token) {
+            response.status(401).json({ message: "Missing access token." });
+            return;
+        }
+        const tokenPayload = verifyAccessToken(token);
+        if (!tokenPayload) {
+            response.status(401).json({ message: "Invalid or expired access token." });
+            return;
+        }
+        const [rows] = await db.query(
+            `SELECT id, uuid FROM users WHERE uuid = ? LIMIT 1`,
+            [tokenPayload.sub]
+        );
+        const user = (rows as UserRecord[])[0];
+        if (!user) {
+            response.status(404).json({ message: "User not found." });
+            return;
+        }
+        const trimmedName = name.trim();
+        await db.execute(`UPDATE users SET name = ?, updated_at = NOW() WHERE uuid = ?`, [trimmedName, user.uuid]);
+        response.status(200).json({ message: "Name updated successfully.", name: trimmedName });
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Unable to update name right now." });
+    }
+};
+
 export const changePassword = async (request: Request, response: Response) => {
     try {
         const { currentPassword, newPassword } = request.body;

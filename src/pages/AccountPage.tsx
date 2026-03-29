@@ -11,13 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { changePassword } from "@/lib/api";
+import { changePassword, updateName } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 type Tab = "profile" | "security" | "billing";
 
 const AccountPage = () => {
-  const { user, isLoggedIn, isAuthLoading } = useAuth();
+  const { user, isLoggedIn, isAuthLoading, refreshUser } = useAuth();
 
   if (!isAuthLoading && !isLoggedIn) {
     const isMobile = window.innerWidth < 768;
@@ -100,6 +100,25 @@ const AccountPage = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const { toast } = useToast();
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [nameLoading, setNameLoading] = useState(false);
+
+  const handleSaveName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || name.trim().length < 2) {
+      toast({ title: "Please enter a valid name (at least 2 characters)", variant: "destructive" });
+      return;
+    }
+    setNameLoading(true);
+    try {
+      await updateName({ name: name.trim() });
+      await refreshUser?.();
+      toast({ title: "Name updated successfully" });
+    } catch (err: any) {
+      toast({ title: err?.message || "Failed to update name", variant: "destructive" });
+    } finally {
+      setNameLoading(false);
+    }
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,7 +225,7 @@ const AccountPage = () => {
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-5">
+                <form onSubmit={handleSaveName} className="grid sm:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
                     <Input
@@ -228,13 +247,17 @@ const AccountPage = () => {
                     />
                     <p className="text-xs text-muted-foreground">Email cannot be changed.</p>
                   </div>
-                </div>
 
-                <div className="flex justify-end">
-                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-                    Save Changes
-                  </Button>
-                </div>
+                  <div className="sm:col-span-2 flex justify-end">
+                    <Button
+                      type="submit"
+                      disabled={nameLoading}
+                      className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                    >
+                      {nameLoading ? "Saving…" : "Save Changes"}
+                    </Button>
+                  </div>
+                </form>
               </ScrollReveal>
             )}
 

@@ -326,3 +326,22 @@ export const changePassword = (payload: ChangePasswordPayload) =>
         requiresAuth: true,
         body: JSON.stringify(payload),
     });
+
+export interface UpdateNamePayload {
+    name: string;
+}
+
+export interface UpdateNameResponse {
+    message: string;
+    name: string;
+}
+
+export const updateName = (payload: UpdateNamePayload) =>
+    request<UpdateNameResponse>("/auth/update-name", {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        requiresAuth: true,
+        body: JSON.stringify(payload),
+    });
