@@ -1,18 +1,30 @@
-import { Link } from "react-router-dom";
+
+import { useNavigate } from "react-router-dom";
 import { CheckCircle2, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
 import { useEffect } from "react";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 
+
 const PaymentSuccess = () => {
     const { clearCart } = useCart();
+    const { refreshUser } = useAuth();
+    const navigate = useNavigate();
+
     useEffect(() => {
         clearCart();
     }, [clearCart]);
+
+    // Handler to refresh user/order state and navigate
+    const handleNavigate = async (path: string) => {
+        await refreshUser?.();
+        navigate(path);
+    };
+
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
             <Navbar />
@@ -36,11 +48,17 @@ const PaymentSuccess = () => {
                             </p>
                         </div>
                         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                                <Link to="/orders">View Orders</Link>
+                            <Button
+                                className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                onClick={() => handleNavigate("/orders")}
+                            >
+                                View Orders
                             </Button>
-                            <Button asChild variant="outline">
-                                <Link to="/products">Continue Shopping</Link>
+                            <Button
+                                variant="outline"
+                                onClick={() => handleNavigate("/products")}
+                            >
+                                Continue Shopping
                             </Button>
                         </div>
                     </div>
