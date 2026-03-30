@@ -137,7 +137,7 @@ const Navbar = () => {
               onClick={() => { setSearchSheetOpen(false); setSearchQuery(""); }}
               className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted transition-colors"
             >
-              <img src={product.image} alt={product.title} className="h-14 w-12 rounded-md object-cover flex-shrink-0" />
+              <img src={product.image} alt={product.title} className="h-14 w-12 rounded-md object-cover flex-shrink-0" loading="lazy" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{product.title}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{product.tag}</p>
@@ -192,7 +192,7 @@ const Navbar = () => {
         ) : (
           cart.map((item) => (
             <div key={item.slug} className="flex items-start gap-3 rounded-lg border p-3">
-              <img src={item.image} alt={item.title} className="h-16 w-14 rounded-md object-cover" />
+              <img src={item.image} alt={item.title} className="h-16 w-14 rounded-md object-cover" loading="lazy" />
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">

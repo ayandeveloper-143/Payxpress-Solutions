@@ -1,8 +1,20 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /account
+Disallow: /checkout
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /payment-success
+Disallow: /api/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /account
+Disallow: /checkout
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /payment-success
+Disallow: /api/
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +24,11 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /account
+Disallow: /checkout
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /payment-success
+Disallow: /api/
+
+Sitemap: https://payxpress-solutions.com/sitemap.xml
