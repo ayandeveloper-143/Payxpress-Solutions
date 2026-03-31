@@ -5,6 +5,7 @@ export interface CartItem {
   image: string;
   quantity: number;
   cartLimit: number;
+  changes?: boolean;
 }
 
 export interface CheckoutFormData {

@@ -3,6 +3,34 @@ import { CartItem } from "@/types/cart";
 import { useAuth } from "@/context/AuthContext";
 import { fetchUserCart, saveUserCart } from "@/lib/api";
 
+const CUSTOM_SUPPORT_SLUG = "custom-support";
+
+/**
+ * Recalculates the custom support product's price to 10% of the subtotal of
+ * all other cart items. Used only for guest (not logged-in) users; logged-in
+ * users have their pricing handled by the backend.
+ * If the custom support item has `changes === false`, the price is left unchanged.
+ */
+const applyCustomSupportPricing = (cart: CartItem[]): CartItem[] => {
+  const supportIndex = cart.findIndex((item) => item.slug === CUSTOM_SUPPORT_SLUG);
+  if (supportIndex === -1) {
+    return cart;
+  }
+  if (cart[supportIndex].changes === false) {
+    return cart;
+  }
+  const subtotal = cart.reduce((acc, item) => {
+    if (item.slug === CUSTOM_SUPPORT_SLUG) return acc;
+    const price = parseFloat(item.price.replace("₹", "").replace(/,/g, ""));
+    return acc + (Number.isFinite(price) ? price * item.quantity : 0);
+  }, 0);
+  const supportPrice = Math.floor(subtotal * 0.1);
+  const formattedPrice = `₹${supportPrice.toLocaleString("en-IN")}`;
+  return cart.map((item, idx) =>
+    idx === supportIndex ? { ...item, price: formattedPrice } : item
+  );
+};
+
 interface CartContextType {
   cart: CartItem[];
   addToCart: (item: CartItem) => boolean;
@@ -57,7 +85,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Number.isFinite(item.quantity) &&
       Number.isFinite(item.cartLimit) &&
       item.cartLimit > 0 &&
-      item.quantity > 0
+      item.quantity > 0 &&
+      (item.changes === undefined || typeof item.changes === "boolean")
     );
   };
 
@@ -86,7 +115,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validItems));
       }
 
-      return removePurchasedItems(validItems);
+      return removePurchasedItems(applyCustomSupportPricing(validItems));
     } catch (error) {
       console.error("Failed to parse cart from localStorage", error);
       localStorage.removeItem(CART_STORAGE_KEY);
@@ -145,9 +174,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const response = await fetchUserCart();
         const mergedCart = removePurchasedItems(mergeCartItems(response.cart, localCart));
 
-        setCart(mergedCart);
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(mergedCart));
-        await saveUserCart({ cart: mergedCart });
+        // Let the backend apply custom support pricing by saving the merged cart,
+        // then use the server's returned cart (with correct pricing) as the source of truth.
+        const saveResponse = await saveUserCart({ cart: mergedCart });
+        setCart(saveResponse.cart);
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(saveResponse.cart));
       } catch (error) {
         console.error("Failed to sync cart from server", error);
       }
@@ -165,14 +196,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart((prevCart) => removePurchasedItems(prevCart));
   }, [hasHydrated, user?.orderHistory]);
 
-  // Persist server cart whenever logged-in cart changes.
+  // Persist server cart whenever logged-in cart changes. After saving, the backend
+  // may have recalculated prices (e.g., custom support pricing), so update local
+  // state with the server's returned cart if any prices differ.
   useEffect(() => {
     if (!hasHydrated || isAuthLoading || !isLoggedIn) {
       return;
     }
 
     const timeout = setTimeout(() => {
-      saveUserCart({ cart }).catch((error) => {
+      saveUserCart({ cart }).then((response) => {
+        setCart((prevCart) => {
+          const serverSupport = response.cart.find((i) => i.slug === CUSTOM_SUPPORT_SLUG);
+          const localSupport = prevCart.find((i) => i.slug === CUSTOM_SUPPORT_SLUG);
+          if (serverSupport && localSupport && serverSupport.price !== localSupport.price) {
+            return prevCart.map((item) =>
+              item.slug === CUSTOM_SUPPORT_SLUG ? { ...item, price: serverSupport.price } : item
+            );
+          }
+          return prevCart;
+        });
+      }).catch((error) => {
         console.error("Failed to save cart to server", error);
       });
     }, 200);
@@ -189,8 +233,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart((prevCart) => {
       const normalizedItem = clampCartItem(item);
       const existingItem = prevCart.find((i) => i.slug === item.slug);
+      let updated: CartItem[];
       if (existingItem) {
-        return prevCart.map((i) =>
+        updated = prevCart.map((i) =>
           i.slug === item.slug
             ? {
               ...i,
@@ -199,15 +244,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             : i
         );
+      } else {
+        updated = [...prevCart, normalizedItem];
       }
-      return [...prevCart, normalizedItem];
+      return isLoggedIn ? updated : applyCustomSupportPricing(updated);
     });
 
     return true;
   };
 
   const removeFromCart = (slug: string) => {
-    setCart((prevCart) => prevCart.filter((i) => i.slug !== slug));
+    setCart((prevCart) => {
+      const filtered = prevCart.filter((i) => i.slug !== slug);
+      return isLoggedIn ? filtered : applyCustomSupportPricing(filtered);
+    });
   };
 
   const updateQuantity = (slug: string, quantity: number) => {
@@ -223,14 +273,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (quantity <= 0) {
-        return prevCart.filter((item) => item.slug !== slug);
+        const filtered = prevCart.filter((item) => item.slug !== slug);
+        return isLoggedIn ? filtered : applyCustomSupportPricing(filtered);
       }
 
-      return prevCart.map((item) =>
+      const updated = prevCart.map((item) =>
         item.slug === slug
           ? { ...item, quantity: Math.min(quantity, item.cartLimit) }
           : item
       );
+      return isLoggedIn ? updated : applyCustomSupportPricing(updated);
     });
   };
 

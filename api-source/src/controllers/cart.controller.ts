@@ -116,6 +116,7 @@ const cartItemSchema = z.object({
     image: z.string().trim().min(1).max(1024),
     quantity: z.number().int().min(1).max(999),
     cartLimit: z.number().int().min(1).max(999).optional(),
+    changes: z.boolean().optional(),
 });
 
 const cartSchema = z.object({
@@ -274,6 +275,28 @@ const attachCartLimits = async (cart: Array<z.infer<typeof cartItemSchema>>) => 
     }, []);
 };
 
+const CUSTOM_SUPPORT_SLUG = "custom-support";
+
+const applyCustomSupportPricing = (cart: Array<z.infer<typeof cartItemSchema>>): Array<z.infer<typeof cartItemSchema>> => {
+    const supportIndex = cart.findIndex((item) => item.slug === CUSTOM_SUPPORT_SLUG);
+    if (supportIndex === -1) {
+        return cart;
+    }
+    if (cart[supportIndex].changes === false) {
+        return cart;
+    }
+    const subtotal = cart.reduce((acc, item) => {
+        if (item.slug === CUSTOM_SUPPORT_SLUG) return acc;
+        const price = parseFloat(item.price.replace("₹", "").replace(/,/g, ""));
+        return acc + (Number.isFinite(price) ? price * item.quantity : 0);
+    }, 0);
+    const supportPrice = Math.floor(subtotal * 0.1);
+    const formattedPrice = `₹${supportPrice.toLocaleString("en-IN")}`;
+    return cart.map((item, idx) =>
+        idx === supportIndex ? { ...item, price: formattedPrice } : item
+    );
+};
+
 export const getCart = async (request: Request, response: Response) => {
     try {
         const result = await getAuthorizedUserRow(request);
@@ -284,7 +307,7 @@ export const getCart = async (request: Request, response: Response) => {
         }
 
         response.status(200).json({
-            cart: await attachCartLimits(parseStoredCart(result.user.cart_items_json)),
+            cart: applyCustomSupportPricing(await attachCartLimits(parseStoredCart(result.user.cart_items_json))),
         });
     } catch (error) {
         console.error(error);
@@ -311,7 +334,7 @@ export const saveCart = async (request: Request, response: Response) => {
             return;
         }
 
-        const normalizedCart = await attachCartLimits(parsed.data.cart);
+        const normalizedCart = applyCustomSupportPricing(await attachCartLimits(parsed.data.cart));
 
         await db.execute(
             `UPDATE users

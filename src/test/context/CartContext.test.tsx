@@ -407,4 +407,237 @@ describe("CartProvider", () => {
 
     expect(mockFetchUserCart).toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // Custom Support Add-on pricing — guest (not logged in)
+  // -------------------------------------------------------------------------
+  describe("custom-support guest pricing (frontend)", () => {
+    const supportItem = (): CartItem => ({
+      slug: "custom-support",
+      title: "Custom Support Add-on",
+      price: "₹0",
+      image: "/uploads/custom.png",
+      quantity: 1,
+      cartLimit: 1,
+    });
+
+    it("sets custom support price to 10% of cart subtotal when other items are present", async () => {
+      function SupportConsumer() {
+        const { addToCart, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button
+              data-testid="setup"
+              onClick={() => {
+                addToCart(makeItem({ slug: "p1", price: "₹1,000", quantity: 2, cartLimit: 10 }));
+                addToCart(supportItem());
+              }}
+            />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => {
+        screen.getByTestId("setup").click();
+      });
+      // subtotal = 1000 * 2 = 2000; 10% = 200
+      expect(screen.getByTestId("support-price").textContent).toBe("₹200");
+    });
+
+    it("updates custom support price when another product is added", async () => {
+      function SupportConsumer() {
+        const { addToCart, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button data-testid="add-support" onClick={() => addToCart(supportItem())} />
+            <button data-testid="add-p1" onClick={() => addToCart(makeItem({ slug: "p1", price: "₹1,000", quantity: 1, cartLimit: 10 }))} />
+            <button data-testid="add-p2" onClick={() => addToCart(makeItem({ slug: "p2", price: "₹2,000", quantity: 1, cartLimit: 10 }))} />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => { screen.getByTestId("add-support").click(); });
+      await act(async () => { screen.getByTestId("add-p1").click(); });
+      // subtotal = 1000; 10% = 100
+      expect(screen.getByTestId("support-price").textContent).toBe("₹100");
+
+      await act(async () => { screen.getByTestId("add-p2").click(); });
+      // subtotal = 1000 + 2000 = 3000; 10% = 300
+      expect(screen.getByTestId("support-price").textContent).toBe("₹300");
+    });
+
+    it("updates custom support price when a product is removed", async () => {
+      function SupportConsumer() {
+        const { addToCart, removeFromCart, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button data-testid="setup" onClick={() => {
+              addToCart(makeItem({ slug: "p1", price: "₹2,000", quantity: 1, cartLimit: 10 }));
+              addToCart(supportItem());
+            }} />
+            <button data-testid="remove-p1" onClick={() => removeFromCart("p1")} />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => { screen.getByTestId("setup").click(); });
+      // subtotal = 2000; 10% = 200
+      expect(screen.getByTestId("support-price").textContent).toBe("₹200");
+
+      await act(async () => { screen.getByTestId("remove-p1").click(); });
+      // subtotal = 0; 10% = 0
+      expect(screen.getByTestId("support-price").textContent).toBe("₹0");
+    });
+
+    it("does not recalculate custom support price when changes=false", async () => {
+      const lockedSupport: CartItem = { ...supportItem(), price: "₹999", changes: false };
+
+      function SupportConsumer() {
+        const { addToCart, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button data-testid="setup" onClick={() => {
+              addToCart(lockedSupport);
+              addToCart(makeItem({ slug: "p1", price: "₹5,000", quantity: 1, cartLimit: 10 }));
+            }} />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => { screen.getByTestId("setup").click(); });
+      // price is locked at ₹999, not 10% of 5000 = ₹500
+      expect(screen.getByTestId("support-price").textContent).toBe("₹999");
+    });
+
+    it("recalculates custom support price on quantity update", async () => {
+      function SupportConsumer() {
+        const { addToCart, updateQuantity, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button data-testid="setup" onClick={() => {
+              addToCart(makeItem({ slug: "p1", price: "₹1,000", quantity: 1, cartLimit: 10 }));
+              addToCart(supportItem());
+            }} />
+            <button data-testid="qty2" onClick={() => updateQuantity("p1", 2)} />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => { screen.getByTestId("setup").click(); });
+      // subtotal = 1000 * 1 = 1000; 10% = 100
+      expect(screen.getByTestId("support-price").textContent).toBe("₹100");
+
+      await act(async () => { screen.getByTestId("qty2").click(); });
+      // subtotal = 1000 * 2 = 2000; 10% = 200
+      expect(screen.getByTestId("support-price").textContent).toBe("₹200");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Custom Support Add-on pricing — server-driven
+  // -------------------------------------------------------------------------
+  describe("custom-support server-driven pricing", () => {
+    const supportItem = (): CartItem => ({
+      slug: "custom-support",
+      title: "Custom Support Add-on",
+      price: "₹0",
+      image: "/uploads/custom.png",
+      quantity: 1,
+      cartLimit: 1,
+    });
+
+    it("uses the server-returned cart (with custom support price) after login sync", async () => {
+      const serverCart: CartItem[] = [
+        makeItem({ slug: "p1", price: "₹1,000", quantity: 1, cartLimit: 5 }),
+        { ...supportItem(), price: "₹100" }, // server calculated 10% of 1000
+      ];
+      mockFetchUserCart.mockResolvedValue({ cart: serverCart });
+      mockSaveUserCart.mockResolvedValue({ message: "OK", cart: serverCart });
+      mockUseAuth.mockReturnValue({ isLoggedIn: true, isAuthLoading: false } as ReturnType<typeof useAuth>);
+
+      function SupportConsumer() {
+        const { cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return <span data-testid="support-price">{support?.price ?? "none"}</span>;
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // The cart state should reflect the server's returned price, not ₹0
+      expect(screen.getByTestId("support-price").textContent).toBe("₹100");
+    });
+
+    it("updates custom support price in state when server returns a different price after save", async () => {
+      mockUseAuth.mockReturnValue({ isLoggedIn: true, isAuthLoading: false } as ReturnType<typeof useAuth>);
+
+      // First save: server returns updated support price
+      const serverCartWithPrice: CartItem[] = [
+        makeItem({ slug: "p1", price: "₹2,000", quantity: 1, cartLimit: 5 }),
+        { ...supportItem(), price: "₹200" }, // server calculated 10% of 2000
+      ];
+      mockFetchUserCart.mockResolvedValue({ cart: [] });
+      mockSaveUserCart.mockResolvedValue({ message: "OK", cart: serverCartWithPrice });
+
+      function SupportConsumer() {
+        const { addToCart, cart } = useCart();
+        const support = cart.find((i) => i.slug === "custom-support");
+        return (
+          <div>
+            <span data-testid="support-price">{support?.price ?? "none"}</span>
+            <button
+              data-testid="setup"
+              onClick={() => {
+                addToCart(makeItem({ slug: "p1", price: "₹2,000", quantity: 1, cartLimit: 5 }));
+                addToCart(supportItem());
+              }}
+            />
+          </div>
+        );
+      }
+
+      await act(async () => {
+        render(<CartProvider><SupportConsumer /></CartProvider>);
+      });
+      await act(async () => {
+        screen.getByTestId("setup").click();
+      });
+      // Wait for debounced save (200ms) + state update
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 300));
+      });
+
+      // Cart state should now reflect the server-computed price
+      expect(screen.getByTestId("support-price").textContent).toBe("₹200");
+    });
+  });
 });

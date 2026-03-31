@@ -222,6 +222,27 @@ export const products: Product[] = [
         ],
         cartLimit: 5,
     },
+    {
+        slug: "custom-support",
+        title: "Custom Support Add-on",
+        description: "Get personalized support tailored to your selected products. Price is automatically calculated based on your cart.",
+        tag: "Support",
+        price: "₹0",
+        image: "/uploads/custom.png",
+        overview:
+            "Enhance your purchase with our Custom Support Add-on. Pricing is automatically calculated as 10% of your cart subtotal, ensuring you only pay for the level of support required for your selected solutions.",
+        shortNote: "Personalized support calculated dynamically based on your order.",
+        fullDescription:
+            "Whether you need setup assistance, customization, or technical guidance, our team will provide tailored support specific to your order. The price of this add-on is dynamically calculated based on the products added to your cart.\n\nDisclaimer: The price of Custom Support is dynamically calculated based on the products added to your cart. The final support cost may vary depending on the complexity, customization requirements, and scope of selected items. By adding this service, you agree that the pricing is system-generated and reflects the level of support required for your order.",
+        screenshots: ["/uploads/custom.png"],
+        features: [
+            "Dynamic pricing based on selected products",
+            "Personalized assistance",
+            "Faster setup & integration help",
+            "Dedicated technical guidance",
+        ],
+        cartLimit: 1,
+    },
 ];
 
 export const getProductBySlug = (slug: string) =>
