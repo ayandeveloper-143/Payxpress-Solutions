@@ -3,6 +3,33 @@ import { CartItem } from "@/types/cart";
 import { useAuth } from "@/context/AuthContext";
 import { fetchUserCart, saveUserCart } from "@/lib/api";
 
+const CUSTOM_SUPPORT_SLUG = "custom-support";
+
+/**
+ * Recalculates the custom support product's price to 10% of the subtotal of
+ * all other cart items. If the custom support item has `changes === false`,
+ * the price is left unchanged.
+ */
+const applyCustomSupportPricing = (cart: CartItem[]): CartItem[] => {
+  const supportIndex = cart.findIndex((item) => item.slug === CUSTOM_SUPPORT_SLUG);
+  if (supportIndex === -1) {
+    return cart;
+  }
+  if (cart[supportIndex].changes === false) {
+    return cart;
+  }
+  const subtotal = cart.reduce((acc, item) => {
+    if (item.slug === CUSTOM_SUPPORT_SLUG) return acc;
+    const price = parseFloat(item.price.replace("₹", "").replace(/,/g, ""));
+    return acc + (Number.isFinite(price) ? price * item.quantity : 0);
+  }, 0);
+  const supportPrice = Math.floor(subtotal * 0.1);
+  const formattedPrice = `₹${supportPrice.toLocaleString("en-IN")}`;
+  return cart.map((item, idx) =>
+    idx === supportIndex ? { ...item, price: formattedPrice } : item
+  );
+};
+
 interface CartContextType {
   cart: CartItem[];
   addToCart: (item: CartItem) => boolean;
@@ -57,7 +84,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Number.isFinite(item.quantity) &&
       Number.isFinite(item.cartLimit) &&
       item.cartLimit > 0 &&
-      item.quantity > 0
+      item.quantity > 0 &&
+      (item.changes === undefined || typeof item.changes === "boolean")
     );
   };
 
@@ -86,7 +114,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validItems));
       }
 
-      return removePurchasedItems(validItems);
+      return removePurchasedItems(applyCustomSupportPricing(validItems));
     } catch (error) {
       console.error("Failed to parse cart from localStorage", error);
       localStorage.removeItem(CART_STORAGE_KEY);
@@ -143,7 +171,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const localCart = readCartFromStorage();
         const response = await fetchUserCart();
-        const mergedCart = removePurchasedItems(mergeCartItems(response.cart, localCart));
+        const mergedCart = removePurchasedItems(applyCustomSupportPricing(mergeCartItems(response.cart, localCart)));
 
         setCart(mergedCart);
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(mergedCart));
@@ -189,8 +217,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart((prevCart) => {
       const normalizedItem = clampCartItem(item);
       const existingItem = prevCart.find((i) => i.slug === item.slug);
+      let updated: CartItem[];
       if (existingItem) {
-        return prevCart.map((i) =>
+        updated = prevCart.map((i) =>
           i.slug === item.slug
             ? {
               ...i,
@@ -199,15 +228,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             : i
         );
+      } else {
+        updated = [...prevCart, normalizedItem];
       }
-      return [...prevCart, normalizedItem];
+      return applyCustomSupportPricing(updated);
     });
 
     return true;
   };
 
   const removeFromCart = (slug: string) => {
-    setCart((prevCart) => prevCart.filter((i) => i.slug !== slug));
+    setCart((prevCart) => applyCustomSupportPricing(prevCart.filter((i) => i.slug !== slug)));
   };
 
   const updateQuantity = (slug: string, quantity: number) => {
@@ -223,14 +254,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (quantity <= 0) {
-        return prevCart.filter((item) => item.slug !== slug);
+        return applyCustomSupportPricing(prevCart.filter((item) => item.slug !== slug));
       }
 
-      return prevCart.map((item) =>
+      const updated = prevCart.map((item) =>
         item.slug === slug
           ? { ...item, quantity: Math.min(quantity, item.cartLimit) }
           : item
       );
+      return applyCustomSupportPricing(updated);
     });
   };
 

@@ -90,6 +90,7 @@ CREATE TABLE `products` (
   `full_description` text NOT NULL,
   `screenshots` json NOT NULL,
   `features` json NOT NULL,
+  `cart_limit` int NOT NULL DEFAULT '1',
   `sort_order` int NOT NULL DEFAULT '0',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -151,6 +152,31 @@ ALTER TABLE `contact_enquiries`
 ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uq_products_slug` (`slug`);
+
+--
+-- Custom Support Add-on product seed
+-- Price label is ₹0 because the actual price is computed dynamically in the cart.
+-- The computed price (10% of cart subtotal) is stored only inside cart_items_json.
+--
+INSERT INTO `products`
+  (`slug`, `title`, `description`, `tag`, `price_label`, `image`, `overview`, `short_note`, `full_description`, `screenshots`, `features`, `cart_limit`, `sort_order`, `is_active`)
+VALUES
+  (
+    'custom-support',
+    'Custom Support Add-on',
+    'Get personalized support tailored to your selected products. Price is automatically calculated based on your cart.',
+    'Support',
+    '₹0',
+    'public/uploads/custom.png',
+    'Enhance your purchase with our Custom Support Add-on. Pricing is automatically calculated as 10% of your cart subtotal, ensuring you only pay for the level of support required for your selected solutions.',
+    'Personalized support calculated dynamically based on your order.',
+    'Whether you need setup assistance, customization, or technical guidance, our team will provide tailored support specific to your order. The price of this add-on is dynamically calculated based on the products added to your cart.\n\nDisclaimer: The price of Custom Support is dynamically calculated based on the products added to your cart. The final support cost may vary depending on the complexity, customization requirements, and scope of selected items. By adding this service, you agree that the pricing is system-generated and reflects the level of support required for your order.',
+    '["public/uploads/custom.png"]',
+    '["Dynamic pricing based on selected products","Personalized assistance","Faster setup & integration help","Dedicated technical guidance"]',
+    1,
+    9999,
+    1
+  );
 
 --
 -- Indexes for table `users`
