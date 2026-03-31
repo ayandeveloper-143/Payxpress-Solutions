@@ -121,7 +121,7 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
         <h3 className="font-semibold text-lg">{title}</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
         <div className="flex items-center justify-between pt-2 gap-2">
-          <span className="font-bold text-foreground">{price}</span>
+          <span className="font-bold text-foreground">{price === "₹0" ? "Custom" : price}</span>
           <div className="flex gap-2">
             {purchased && (
               <Button

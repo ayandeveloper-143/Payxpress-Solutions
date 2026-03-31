@@ -216,7 +216,11 @@ const ProductDetails = () => {
                         <p className="text-muted-foreground leading-relaxed">{product.overview}</p>
 
                         <div className="text-lg font-semibold">
-                            Starting at <span className="text-foreground">{product.price}</span>
+                            {product.price === "₹0" ? (
+                                <span className="text-foreground">Custom Pricing</span>
+                            ) : (
+                                <>Starting at <span className="text-foreground">{product.price}</span></>
+                            )}
                         </div>
 
                         <p className="text-sm text-muted-foreground bg-muted/50 border rounded-lg px-4 py-3">
@@ -354,7 +358,7 @@ const ProductDetails = () => {
                                     <p className="text-sm text-muted-foreground line-clamp-2">
                                         {suggestion.description}
                                     </p>
-                                    <div className="text-sm font-semibold text-foreground">{suggestion.price}</div>
+                                    <div className="text-sm font-semibold text-foreground">{suggestion.price === "₹0" ? "Custom" : suggestion.price}</div>
                                 </div>
                             </Link>
                         ))}

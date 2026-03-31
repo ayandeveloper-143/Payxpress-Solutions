@@ -141,7 +141,7 @@ const Navbar = () => {
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{product.title}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{product.tag}</p>
-                <p className="mt-1 text-sm font-semibold text-accent">{product.price}</p>
+                <p className="mt-1 text-sm font-semibold text-accent">{product.price === "₹0" ? "Custom" : product.price}</p>
               </div>
             </Link>
           ))
@@ -199,7 +199,7 @@ const Navbar = () => {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
                   </div>
-                  <p className="text-sm font-semibold text-destructive whitespace-nowrap">{item.price}</p>
+                  <p className="text-sm font-semibold text-destructive whitespace-nowrap">{item.price === "₹0" ? "Custom" : item.price}</p>
                 </div>
 
                 <div className="mt-2 flex items-center gap-3">

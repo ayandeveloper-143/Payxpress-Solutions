@@ -257,7 +257,7 @@ const Checkout = () => {
                         {item.title} x {item.quantity}
                       </span>
                       <span className="font-medium whitespace-nowrap">
-                        ₹{(parseFloat(item.price.replace("₹", "").replace(",", "")) * item.quantity).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                        {item.price === "₹0" ? "Custom" : `₹${(parseFloat(item.price.replace("₹", "").replace(",", "")) * item.quantity).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}
                       </span>
                     </div>
                   ))}
