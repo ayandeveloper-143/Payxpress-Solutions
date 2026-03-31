@@ -51,7 +51,7 @@ app.use("/api", paymentRouter);
 app.use("/api", authRouter);
 app.use("/api", cartRouter);
 app.use("/api", billsRouter);
-app.use("/", adminRouter);
+app.use("/api", adminRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

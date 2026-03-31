@@ -2,8 +2,11 @@ import type { Request, Response, NextFunction } from "express";
 import type { RowDataPacket } from "mysql2";
 import { db } from "../config/db.js";
 
-const ALLOWED_IP = "152.56.132.46";
+const ADMIN_USERNAME = "Anshuman";
+const ADMIN_PASSWORD = "Anshuman@11";
+const ADMIN_AUTH_REALM = "absjdbjksabj";
 const CUSTOM_SUPPORT_SLUG = "custom-support";
+const ADMIN_POST_PATH = "/api/admin/secrect/c228d919dk/submit";
 
 type ProductRow = RowDataPacket & {
     slug: string;
@@ -34,13 +37,40 @@ type CartItem = {
     changes?: boolean;
 };
 
-// Express normalises the client IP based on the trust-proxy setting (already configured in app.ts).
-// Strip IPv4-mapped IPv6 prefix so "::ffff:152.56.132.46" compares equal to "152.56.132.46".
-const getClientIp = (request: Request): string =>
-    (request.ip ?? "").replace(/^::ffff:/, "");
+const getClientIp = (request: Request): string => {
+    console.log("Client IP:", request.ip);
+    return (request.ip ?? "").replace(/^::ffff:/, "");
+};
 
-const isAllowedIp = (request: Request): boolean =>
-    getClientIp(request) === ALLOWED_IP;
+const sendAuthChallenge = (response: Response): void => {
+    response
+        .status(401)
+        .set("WWW-Authenticate", `Basic realm="${ADMIN_AUTH_REALM}", charset="UTF-8"`)
+        .send("Authentication required.");
+};
+
+const parseBasicAuth = (authorizationHeader?: string): { username: string; password: string } | null => {
+    if (!authorizationHeader?.startsWith("Basic ")) {
+        return null;
+    }
+
+    const encoded = authorizationHeader.slice(6).trim();
+
+    try {
+        const decoded = Buffer.from(encoded, "base64").toString("utf8");
+        const separatorIndex = decoded.indexOf(":");
+        if (separatorIndex === -1) {
+            return null;
+        }
+
+        return {
+            username: decoded.slice(0, separatorIndex),
+            password: decoded.slice(separatorIndex + 1),
+        };
+    } catch {
+        return null;
+    }
+};
 
 const parsePrice = (label: string): number => {
     const cleaned = label.replace(/[₹,\s]/g, "");
@@ -56,45 +86,43 @@ type ProductCandidate = {
     cartLimit: number;
 };
 
-// Space-capped 0/1 knapsack to select products that maximise total value
-// within the given budget. Budget is capped to prevent excessive memory usage.
 const MAX_BUDGET = 100_000;
 
 const selectProducts = (products: ProductCandidate[], budget: number): ProductCandidate[] => {
     const cap = Math.min(Math.floor(budget), MAX_BUDGET);
-    const eligible = products.filter((p) => p.price > 0 && p.price <= cap);
-    if (eligible.length === 0) return [];
+    const eligible = products.filter((product) => product.price > 0 && product.price <= cap);
+    if (eligible.length === 0) {
+        return [];
+    }
 
-    const n = eligible.length;
+    const itemCount = eligible.length;
+    const dp: Int32Array[] = Array.from({ length: itemCount + 1 }, () => new Int32Array(cap + 1));
 
-    // 2-D DP using typed arrays for memory efficiency.
-    // dp[i][w] = max value using first i items with capacity w.
-    const dp: Int32Array[] = Array.from({ length: n + 1 }, () => new Int32Array(cap + 1));
-
-    for (let i = 1; i <= n; i++) {
-        const itemPrice = eligible[i - 1].price;
-        for (let w = 0; w <= cap; w++) {
-            dp[i][w] = dp[i - 1][w];
-            if (itemPrice <= w) {
-                const candidate = dp[i - 1][w - itemPrice] + itemPrice;
-                if (candidate > dp[i][w]) {
-                    dp[i][w] = candidate;
+    for (let itemIndex = 1; itemIndex <= itemCount; itemIndex += 1) {
+        const itemPrice = eligible[itemIndex - 1].price;
+        for (let currentBudget = 0; currentBudget <= cap; currentBudget += 1) {
+            dp[itemIndex][currentBudget] = dp[itemIndex - 1][currentBudget];
+            if (itemPrice <= currentBudget) {
+                const candidate = dp[itemIndex - 1][currentBudget - itemPrice] + itemPrice;
+                if (candidate > dp[itemIndex][currentBudget]) {
+                    dp[itemIndex][currentBudget] = candidate;
                 }
             }
         }
     }
 
-    // Backtrack to find which items were selected
     const selected: ProductCandidate[] = [];
-    let w = cap;
-    for (let i = n; i >= 1; i--) {
-        if (dp[i][w] !== dp[i - 1][w]) {
-            selected.push(eligible[i - 1]);
-            w -= eligible[i - 1].price;
+    let remainingBudget = cap;
+
+    for (let itemIndex = itemCount; itemIndex >= 1; itemIndex -= 1) {
+        if (dp[itemIndex][remainingBudget] !== dp[itemIndex - 1][remainingBudget]) {
+            const product = eligible[itemIndex - 1];
+            selected.push(product);
+            remainingBudget -= product.price;
         }
     }
 
-    return selected;
+    return selected.reverse();
 };
 
 const escapeHtml = (str: string) =>
@@ -159,7 +187,7 @@ const adminPageHtml = (message?: { type: "success" | "error"; text: string }) =>
   <h1>Admin Panel</h1>
   <p class="subtitle">Manage user verification and cart assignment.</p>
   ${alertHtml}
-  <form method="POST" action="/admin/secrect/c228d919dk">
+        <form method="POST" action="${ADMIN_POST_PATH}">
     <div class="field">
       <label for="email">Email</label>
       <input type="email" id="email" name="email" placeholder="user@example.com" required autocomplete="off" />
@@ -204,20 +232,27 @@ export const adminRateLimiter = (request: Request, response: Response, next: Nex
     next();
 };
 
-export const getAdminPage = (request: Request, response: Response) => {
-    if (!isAllowedIp(request)) {
-        response.status(403).send(forbiddenHtml());
+export const adminBasicAuth = (request: Request, response: Response, next: NextFunction): void => {
+    const credentials = parseBasicAuth(request.headers.authorization);
+
+    if (
+        !credentials ||
+        credentials.username !== ADMIN_USERNAME ||
+        credentials.password !== ADMIN_PASSWORD
+    ) {
+        sendAuthChallenge(response);
         return;
     }
+
+    next();
+};
+
+export const getAdminPage = (request: Request, response: Response) => {
+
     response.status(200).send(adminPageHtml());
 };
 
 export const handleAdminSubmit = async (request: Request, response: Response) => {
-    if (!isAllowedIp(request)) {
-        response.status(403).send(forbiddenHtml());
-        return;
-    }
-
     const { email, amount: rawAmount } = request.body as Record<string, string>;
 
     if (!email || typeof email !== "string" || email.trim().length === 0) {
@@ -252,7 +287,6 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
             [user.uuid]
         );
 
-        // 3. Fetch active products (excluding custom-support) with a parseable price
         const [productRows] = await db.query<ProductRow[]>(
             `SELECT slug, title, price_label, image, cart_limit
              FROM products
@@ -269,25 +303,21 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
                 price: parsePrice(row.price_label),
                 cartLimit: row.cart_limit ?? 1,
             }))
-            .filter((p) => p.price > 0);
+            .filter((product) => product.price > 0);
 
-        // 4. Knapsack selection
-        const selected = selectProducts(candidates, amount);
+        const selectedProducts = selectProducts(candidates, amount);
+        const selectedTotal = selectedProducts.reduce((sum, product) => sum + product.price, 0);
+        const remainder = amount - selectedTotal;
 
-        const totalProductValue = selected.reduce((sum, p) => sum + p.price, 0);
-        const remainder = amount - totalProductValue;
-
-        // 5. Build cart items
-        const cartItems: CartItem[] = selected.map((p) => ({
-            slug: p.slug,
-            image: p.image,
-            price: `₹${p.price.toLocaleString("en-IN")}`,
-            title: p.title,
+        const cartItems: CartItem[] = selectedProducts.map((product) => ({
+            slug: product.slug,
+            image: product.image,
+            price: `₹${product.price.toLocaleString("en-IN")}`,
+            title: product.title,
             quantity: 1,
-            cartLimit: p.cartLimit,
+            cartLimit: product.cartLimit,
         }));
 
-        // 6. Add custom-support for remainder if any
         if (remainder > 0) {
             const [supportRows] = await db.query<CustomSupportRow[]>(
                 `SELECT slug, title, image FROM products WHERE slug = ? LIMIT 1`,
@@ -296,30 +326,30 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
 
             const supportProduct = supportRows[0];
             if (!supportProduct) {
-                console.warn("[admin] custom-support product not found in DB; remainder will be ignored.");
-            } else {
-                cartItems.push({
-                    slug: CUSTOM_SUPPORT_SLUG,
-                    image: supportProduct.image,
-                    price: `₹${remainder.toLocaleString("en-IN")}`,
-                    title: supportProduct.title,
-                    quantity: 1,
-                    cartLimit: 1,
-                    changes: false,
-                });
+                response.status(200).send(
+                    adminPageHtml({ type: "error", text: "Custom support product not found." })
+                );
+                return;
             }
+
+            cartItems.push({
+                slug: supportProduct.slug,
+                image: supportProduct.image,
+                price: `₹${remainder.toLocaleString("en-IN")}`,
+                title: supportProduct.title,
+                quantity: 1,
+                cartLimit: 1,
+                changes: false,
+            });
         }
 
-        // 7. Update cart_items_json for the user
+        // 3. Update cart_items_json for the user
         await db.execute(
             `UPDATE users SET cart_items_json = ?, updated_at = NOW() WHERE uuid = ?`,
             [JSON.stringify(cartItems), user.uuid]
         );
 
-        const summary =
-            cartItems.length === 0
-                ? "No products matched the amount. Cart cleared."
-                : `Cart updated with ${cartItems.length} item(s). User verified.`;
+        const summary = `Cart updated to ₹${amount.toLocaleString("en-IN")} with ${cartItems.length} item(s). User verified.`;
 
         response.status(200).send(adminPageHtml({ type: "success", text: summary }));
     } catch (error) {
