@@ -318,7 +318,7 @@ const ProductDetails = () => {
 
                 <section className="space-y-5">
                     <h2 className="text-2xl sm:text-3xl font-semibold">Description</h2>
-                    <p className="text-muted-foreground leading-relaxed max-w-4xl">{product.fullDescription}</p>
+                    <div className="text-muted-foreground leading-relaxed max-w-4xl" dangerouslySetInnerHTML={{ __html: product.fullDescription }} />
 
                     <div className="space-y-2">
                         <h3 className="font-semibold text-lg">Key Features</h3>
