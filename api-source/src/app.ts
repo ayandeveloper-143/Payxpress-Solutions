@@ -9,6 +9,7 @@ import healthRouter from "./routes/health.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
 import billsRouter from "./routes/bills.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 
 const app = express();
@@ -41,6 +42,7 @@ app.use(
     })
 );
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use("/api", healthRouter);
 app.use("/api", productRouter);
@@ -49,6 +51,7 @@ app.use("/api", paymentRouter);
 app.use("/api", authRouter);
 app.use("/api", cartRouter);
 app.use("/api", billsRouter);
+app.use("/", adminRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
