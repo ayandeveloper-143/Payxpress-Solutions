@@ -1,10 +1,11 @@
 
-import { useNavigate } from "react-router-dom";
-import { CheckCircle2, PackageCheck } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CheckCircle2, Loader2, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { fetchCashfreeOrderStatus } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -14,16 +15,52 @@ const PaymentSuccess = () => {
     const { clearCart } = useCart();
     const { refreshUser } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const [isVerifying, setIsVerifying] = useState(true);
 
     useEffect(() => {
-        clearCart();
-    }, [clearCart]);
+        const orderId = searchParams.get("order_id");
+
+        if (!orderId) {
+            navigate("/checkout", { replace: true });
+            return;
+        }
+
+        fetchCashfreeOrderStatus(orderId)
+            .then((data) => {
+                if (data.orderStatus !== "Success") {
+                    navigate("/checkout", { replace: true });
+                } else {
+                    clearCart();
+                    setIsVerifying(false);
+                }
+            })
+            .catch((error) => {
+                console.error("Payment status verification failed:", error);
+                navigate("/checkout", { replace: true });
+            });
+    }, [searchParams, navigate, clearCart]);
 
     // Handler to refresh user/order state and navigate
     const handleNavigate = async (path: string) => {
         await refreshUser?.();
         navigate(path);
     };
+
+    if (isVerifying) {
+        return (
+            <div className="min-h-screen overflow-x-hidden bg-background">
+                <Navbar />
+                <main className="container-main px-4 py-12 pt-28 pb-16 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                        <Loader2 className="animate-spin" size={32} />
+                        <p>Verifying payment...</p>
+                    </div>
+                </main>
+                <Footer />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
