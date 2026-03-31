@@ -52,10 +52,13 @@ type UserCartRow = {
     cart_items_json: unknown;
 };
 
+const CUSTOM_SUPPORT_SLUG = "custom-support";
+
 type StoredCartItem = {
     slug: string;
     title: string;
     quantity: number;
+    price?: string;
 };
 
 type ProductPriceRow = RowDataPacket & {
@@ -199,6 +202,9 @@ const parseStoredCart = (raw: unknown): StoredCartItem[] => {
                     slug: row.slug,
                     title: row.title,
                     quantity: Math.min(Math.max(Math.trunc(row.quantity), 1), 999),
+                    ...(typeof row.price === "string" && row.price.trim().length > 0
+                        ? { price: row.price.trim() }
+                        : {}),
                 };
             })
             .filter((item): item is StoredCartItem => item !== null);
@@ -218,6 +224,24 @@ const normalizeCartLimit = (value: number | null | undefined) => {
 const parsePriceLabel = (value: string) => {
     const numeric = Number(value.replace(/[^\d.]/g, ""));
     return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
+/**
+ * Resolves the unit price for a cart item.
+ * For most products the authoritative price comes from the products table.
+ * Products with dynamic pricing (e.g. custom-support) store the computed price
+ * directly in the cart item because their price_label is '₹0', so we fall back
+ * to that stored value when the database price_label resolves to null.
+ */
+const resolveUnitPrice = (product: ProductPriceRow, cartItem: StoredCartItem): number | null => {
+    const productUnitPrice = parsePriceLabel(product.price_label);
+    if (productUnitPrice !== null) {
+        return productUnitPrice;
+    }
+    if (cartItem.slug === CUSTOM_SUPPORT_SLUG && cartItem.price) {
+        return parsePriceLabel(cartItem.price);
+    }
+    return null;
 };
 
 const toAbsoluteUrl = (value: string) => {
@@ -499,7 +523,7 @@ export const createCashfreeSession = async (request: Request, response: Response
                 return result;
             }
 
-            const unitPrice = parsePriceLabel(product.price_label);
+            const unitPrice = resolveUnitPrice(product, cartItem);
 
             if (!unitPrice) {
                 return result;
