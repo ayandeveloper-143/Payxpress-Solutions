@@ -1035,7 +1035,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 <div class="company-info">
                     Bareya, West Bengal 713512<br>
                     Phone: 085095 17215<br>
-                    GST: 19CFDPM7789E1ZV
+                    GSTIN: 19CFDPM7789E1ZV
                 </div>
             </div>
             <div class="meta">
