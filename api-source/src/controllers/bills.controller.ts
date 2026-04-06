@@ -37,8 +37,12 @@ export const getBillsHistory = async (request: Request, response: Response) => {
             let date = row.created_at;
             try {
                 const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
-                // Try to extract invoice from data.data.order.order_tags.INVOICE
+                // Try Cashfree / normalized Razorpay format first
                 invoiceNo = data?.data?.order?.order_tags?.INVOICE || "";
+                // Fallback: check raw Razorpay webhook payload format (notes.invoice_id)
+                if (!invoiceNo) {
+                    invoiceNo = data?.payload?.payment?.entity?.notes?.invoice_id || "";
+                }
             } catch { }
             return {
                 invoiceNo,
@@ -84,7 +88,8 @@ export const downloadBillPdf = async (request: Request, response: Response) => {
             try {
                 data = typeof data === "string" ? JSON.parse(data) : data;
             } catch { }
-            const inv = data?.data?.order?.order_tags?.INVOICE;
+            const inv = data?.data?.order?.order_tags?.INVOICE
+                || data?.payload?.payment?.entity?.notes?.invoice_id;
             if (inv === invoiceId) {
                 matchedBill = { ...row, invoiceNo: inv };
                 break;
