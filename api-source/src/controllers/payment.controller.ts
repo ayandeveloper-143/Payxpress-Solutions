@@ -761,7 +761,7 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
         // Read invoice from nested order_tags (Cashfree / normalized Razorpay format)
         const orderObj = toJsonRecord((billJson?.data as Record<string, unknown>)?.order as unknown);
         const orderTagsObj = toJsonRecord(orderObj?.order_tags as unknown);
-        let invoiceNoFinal = readString(orderTagsObj, "INVOICE") || "";
+        let invoiceNoFinal = readString(orderTagsObj, "INVOICE") || billData.orderid || "";
 
         // Fallback: check Razorpay raw webhook payload format (payload.payment.entity.notes.invoice_id)
         if (!invoiceNoFinal) {
@@ -769,8 +769,6 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
             const rawPaymentEntity = toJsonRecord(toJsonRecord(rawPayloadObj?.payment as unknown)?.entity as unknown);
             const rawNotes = toJsonRecord(rawPaymentEntity?.notes as unknown);
             invoiceNoFinal = readString(rawNotes, "invoice_id") || billData.orderid || "";
-        } else {
-            invoiceNoFinal = invoiceNoFinal || billData.orderid || "";
         }
 
         const cartRaw = billData.carts;
@@ -845,9 +843,9 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
             }
         }
 
-        const webhookCreatedAt = rawWebhookPaymentEntity ? rawWebhookPaymentEntity.created_at : undefined;
+        const webhookCreatedAtUnix = rawWebhookPaymentEntity ? rawWebhookPaymentEntity.created_at : undefined;
         const paymentTimeRaw = readString(paymentObj, "payment_time")
-            ?? (webhookCreatedAt ? new Date(Number(webhookCreatedAt) * 1000).toISOString() : null)
+            ?? (webhookCreatedAtUnix ? new Date(Number(webhookCreatedAtUnix) * 1000).toISOString() : null)
             ?? String(billData.created_at ?? new Date().toISOString());
         const paymentTimeStr = new Date(paymentTimeRaw).toLocaleString("en-IN", {
             day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
