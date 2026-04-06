@@ -758,10 +758,18 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
                 : (toJsonRecord(billData.data) ?? {});
         } catch { /* continue with empty billJson */ }
 
-        // Read invoice from nested order_tags
+        // Read invoice from nested order_tags (Cashfree / normalized Razorpay format)
         const orderObj = toJsonRecord((billJson?.data as Record<string, unknown>)?.order as unknown);
         const orderTagsObj = toJsonRecord(orderObj?.order_tags as unknown);
-        const invoiceNoFinal = readString(orderTagsObj, "INVOICE") || billData.orderid || "";
+        let invoiceNoFinal = readString(orderTagsObj, "INVOICE") || billData.orderid || "";
+
+        // Fallback: check Razorpay raw webhook payload format (payload.payment.entity.notes.invoice_id)
+        if (!invoiceNoFinal) {
+            const rawPayloadObj = toJsonRecord(billJson?.payload as unknown);
+            const rawPaymentEntity = toJsonRecord(toJsonRecord(rawPayloadObj?.payment as unknown)?.entity as unknown);
+            const rawNotes = toJsonRecord(rawPaymentEntity?.notes as unknown);
+            invoiceNoFinal = readString(rawNotes, "invoice_id") || billData.orderid || "";
+        }
 
         const cartRaw = billData.carts;
         const cart = typeof cartRaw === "string" ? JSON.parse(cartRaw) : cartRaw;
@@ -785,6 +793,11 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
         const dataObj = toJsonRecord((billJson?.data as Record<string, unknown>));
         const paymentObj = toJsonRecord(dataObj?.payment as unknown);
         const customerObj = toJsonRecord(dataObj?.customer_details as unknown);
+
+        // Fallback: extract customer and payment details from raw Razorpay webhook format
+        const rawWebhookPayloadObj = toJsonRecord(billJson?.payload as unknown);
+        const rawWebhookPaymentEntity = toJsonRecord(toJsonRecord(rawWebhookPayloadObj?.payment as unknown)?.entity as unknown);
+        const rawWebhookNotesObj = toJsonRecord(rawWebhookPaymentEntity?.notes as unknown);
 
         let paymentMethod = "";
         let paymentDetails = "";
@@ -830,7 +843,10 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
             }
         }
 
-        const paymentTimeRaw = readString(paymentObj, "payment_time") ?? String(billData.created_at ?? new Date().toISOString());
+        const webhookCreatedAtUnix = rawWebhookPaymentEntity ? rawWebhookPaymentEntity.created_at : undefined;
+        const paymentTimeRaw = readString(paymentObj, "payment_time")
+            ?? (webhookCreatedAtUnix ? new Date(Number(webhookCreatedAtUnix) * 1000).toISOString() : null)
+            ?? String(billData.created_at ?? new Date().toISOString());
         const paymentTimeStr = new Date(paymentTimeRaw).toLocaleString("en-IN", {
             day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
         });
@@ -838,11 +854,11 @@ const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> 
             day: "2-digit", month: "short", year: "numeric",
         });
 
-        const paymentId = readString(paymentObj, "cf_payment_id") || readString(paymentObj, "payment_id") || "";
+        const paymentId = readString(paymentObj, "cf_payment_id") || readString(paymentObj, "payment_id") || readString(rawWebhookPaymentEntity, "id") || "";
         const bankRef = readString(paymentObj, "bank_reference") || "";
-        const customerName = readString(customerObj, "customer_name") || "";
-        const customerEmail = readString(customerObj, "customer_email") || readString(customerObj, "email") || "";
-        const customerPhone = readString(customerObj, "customer_phone") || readString(customerObj, "phone") || "";
+        const customerName = readString(customerObj, "customer_name") || readString(rawWebhookNotesObj, "customer_name") || "";
+        const customerEmail = readString(customerObj, "customer_email") || readString(customerObj, "email") || readString(rawWebhookNotesObj, "customer_email") || "";
+        const customerPhone = readString(customerObj, "customer_phone") || readString(customerObj, "phone") || readString(rawWebhookNotesObj, "customer_phone") || "";
         const billingAddress = billData.billing_address;
         const orderId = billData.orderid;
         const total = billData.total;
@@ -1964,6 +1980,65 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
             return;
         }
 
+        // Parse existing seed data to preserve invoice ID and customer details
+        let existingData: Record<string, unknown> = {};
+        try {
+            existingData = typeof existingBill.data === "string"
+                ? JSON.parse(existingBill.data)
+                : (toJsonRecord(existingBill.data) ?? {});
+        } catch { /* continue with empty */ }
+
+        const existingDataInner = toJsonRecord(existingData?.data as unknown);
+        const existingCustomerDetails = toJsonRecord(existingDataInner?.customer_details as unknown);
+        const existingOrderObj = toJsonRecord(existingDataInner?.order as unknown);
+        const existingOrderTags = toJsonRecord(existingOrderObj?.order_tags as unknown);
+
+        // Extract invoice ID: prefer existing seed data, fall back to webhook notes
+        const notesObj = toJsonRecord(paymentEntity?.notes as unknown);
+        const invoiceIdFromSeed = readString(existingOrderTags, "INVOICE") || "";
+        const invoiceIdFromNotes = readString(notesObj, "invoice_id") || "";
+        const resolvedInvoiceId = invoiceIdFromSeed || invoiceIdFromNotes;
+
+        // Extract customer details: prefer existing seed data, fall back to webhook notes
+        const customerName = readString(existingCustomerDetails, "customer_name") || readString(notesObj, "customer_name") || "";
+        const customerEmail = readString(existingCustomerDetails, "customer_email") || readString(notesObj, "customer_email") || "";
+        const customerPhone = readString(existingCustomerDetails, "customer_phone") || readString(notesObj, "customer_phone") || "";
+
+        // Fetch payment method details from Razorpay API (non-fatal)
+        const webhookPaymentDetails = txnId ? await fetchRazorpayPaymentDetails(txnId) : null;
+        const paymentMethodObj = webhookPaymentDetails ? mapRazorpayMethodToCashfreeFormat(webhookPaymentDetails) : {};
+        const paymentTime = webhookPaymentDetails?.created_at
+            ? new Date(webhookPaymentDetails.created_at * 1000).toISOString()
+            : new Date().toISOString();
+
+        // Build normalized data in Cashfree-compatible format so invoice generation
+        // and bill history work correctly for both gateways.
+        const normalizedWebhookData = {
+            event: "razorpay_payment_captured",
+            gateway: "razorpay",
+            razorpay_payment_id: txnId,
+            razorpay_webhook_payload: payload,
+            data: {
+                customer_details: {
+                    customer_name: customerName,
+                    customer_email: customerEmail,
+                    customer_phone: customerPhone,
+                },
+                payment: {
+                    cf_payment_id: txnId,
+                    payment_id: txnId,
+                    payment_status: "SUCCESS",
+                    payment_time: paymentTime,
+                    payment_method: paymentMethodObj,
+                    bank_reference: "",
+                },
+                order: {
+                    order_id: orderId,
+                    order_tags: { INVOICE: resolvedInvoiceId },
+                },
+            },
+        };
+
         await connection.beginTransaction();
         transactionStarted = true;
 
@@ -1975,7 +2050,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                  updated_at = CURRENT_TIMESTAMP
              WHERE orderid = ?
                AND status != 'success'`,
-            [txnId, JSON.stringify(payload), status, orderId]
+            [txnId, JSON.stringify(normalizedWebhookData), status, orderId]
         );
 
         if (updateResult.affectedRows === 0) {
