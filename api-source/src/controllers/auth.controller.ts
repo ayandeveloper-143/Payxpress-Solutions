@@ -390,18 +390,8 @@ export const verifySignupLink = async (request: Request, response: Response) => 
             tokenPayload.email,
         ]);
 
-        const accessToken = signAccessToken({ uuid: user.uuid, email: user.email, name: user.name });
-        await persistAccessToken({ token: accessToken, userUuid: user.uuid, request });
-
         response.status(200).json({
-            message: "Email verified successfully.",
-            token: accessToken,
-            user: {
-                id: user.uuid,
-                name: user.name,
-                email: user.email,
-                orderHistory: parseOrderHistory(user.order_history),
-            },
+            message: "Email verified successfully. You can now log in.",
         });
     } catch (error) {
         console.error(error);

@@ -32,13 +32,7 @@ const OrdersPage = () => {
   const { toast } = useToast();
 
   if (!isAuthLoading && !isLoggedIn) {
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) {
-      return <Navigate to="/auth" replace />;
-    } else {
-      window.dispatchEvent(new CustomEvent("show-login-popup"));
-      return null;
-    }
+    return <Navigate to="/" replace />;
   }
 
   const [downloadingSlug, setDownloadingSlug] = useState<string | null>(null);
