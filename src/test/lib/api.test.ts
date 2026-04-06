@@ -229,16 +229,13 @@ describe("startSignup", () => {
 });
 
 describe("verifySignupLink", () => {
-  it("posts to /auth/signup/verify-link and returns token and user", async () => {
+  it("posts to /auth/signup/verify-link and returns a confirmation message", async () => {
     const response = {
-      message: "Account created",
-      token: "jwt-new",
-      user: { id: "2", name: "New User", email: "new@user.com" },
+      message: "Email verified successfully. You can now log in.",
     };
     mockFetch.mockResolvedValue(makeResponse(response));
     const result = await verifySignupLink({ token: "email-verify-token" });
-    expect(result.token).toBe("jwt-new");
-    expect(result.user.name).toBe("New User");
+    expect(result.message).toBe("Email verified successfully. You can now log in.");
     expect(mockFetch.mock.calls[0][0]).toContain("/auth/signup/verify-link");
   });
 });

@@ -80,11 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifySignupToken = async (token: string) => {
     const response = await verifySignupLink({ token });
-    const authUser = mapUserFromApi(response.user);
-
-    setUser(authUser);
-    localStorage.setItem("auth_token", response.token);
-    localStorage.setItem("user", JSON.stringify(authUser));
     return response.message;
   };
 

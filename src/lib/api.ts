@@ -146,8 +146,6 @@ export interface SignupVerifyLinkPayload {
 
 export interface SignupVerifyLinkResponse {
     message: string;
-    token: string;
-    user: AuthUserResponse;
 }
 
 export interface ForgotPasswordStartPayload {
