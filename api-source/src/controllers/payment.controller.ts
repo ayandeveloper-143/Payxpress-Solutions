@@ -154,6 +154,15 @@ type RazorpayPaymentDetails = {
     created_at?: number;
     description?: string;
     error_description?: string;
+    acquirer_data?: {
+        rrn?: string;
+        auth_code?: string;
+        [key: string]: string | undefined;
+    };
+    notes?: {
+        invoice_id?: string;
+        [key: string]: string | undefined;
+    };
 };
 
 const createRazorpayOrderSchema = z.object({
@@ -1768,13 +1777,13 @@ export const verifyRazorpayPayment = async (request: Request, response: Response
                     payment_status: "SUCCESS",
                     payment_time: paymentTime,
                     payment_method: paymentMethodObj,
-                    bank_reference: "",
+                    bank_reference: paymentDetails?.acquirer_data?.rrn ?? "",
                 },
                 order: {
                     order_id: razorpayOrderId,
                     order_tags: toJsonRecord(
                         toJsonRecord(toJsonRecord((existingData as Record<string, unknown>)?.data as unknown)?.order as unknown)?.order_tags as unknown
-                    ) ?? { INVOICE: "" },
+                    ) ?? { INVOICE: paymentDetails?.notes?.invoice_id ?? "" },
                 },
             },
         };
@@ -1999,6 +2008,10 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
         const invoiceIdFromNotes = readString(notesObj, "invoice_id") || "";
         const resolvedInvoiceId = invoiceIdFromSeed || invoiceIdFromNotes;
 
+        // Extract bank reference from webhook payload acquirer_data, fall back to fetched payment details
+        const acquirerDataObj = toJsonRecord(paymentEntity?.acquirer_data as unknown);
+        const bankReferenceFromWebhook = readString(acquirerDataObj, "rrn") || "";
+
         // Extract customer details: prefer existing seed data, fall back to webhook notes
         const customerName = readString(existingCustomerDetails, "customer_name") || readString(notesObj, "customer_name") || "";
         const customerEmail = readString(existingCustomerDetails, "customer_email") || readString(notesObj, "customer_email") || "";
@@ -2010,6 +2023,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
         const paymentTime = webhookPaymentDetails?.created_at
             ? new Date(webhookPaymentDetails.created_at * 1000).toISOString()
             : new Date().toISOString();
+        const bankReference = bankReferenceFromWebhook || webhookPaymentDetails?.acquirer_data?.rrn || "";
 
         // Build normalized data in Cashfree-compatible format so invoice generation
         // and bill history work correctly for both gateways.
@@ -2030,7 +2044,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                     payment_status: "SUCCESS",
                     payment_time: paymentTime,
                     payment_method: paymentMethodObj,
-                    bank_reference: "",
+                    bank_reference: bankReference,
                 },
                 order: {
                     order_id: orderId,
