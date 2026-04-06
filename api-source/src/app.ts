@@ -10,6 +10,7 @@ import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
 import billsRouter from "./routes/bills.routes.js";
 import adminRouter from "./routes/admin.routes.js";
+import { razorpayWebhook } from "./controllers/payment.controller.js";
 
 
 const app = express();
@@ -41,6 +42,11 @@ app.use(
         },
     })
 );
+
+// Razorpay webhook must receive the raw body for HMAC-SHA256 signature verification.
+// This route is mounted BEFORE express.json() so the body is not pre-parsed.
+app.post("/api/webhook/razorpay", express.raw({ type: "*/*" }), razorpayWebhook);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

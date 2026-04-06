@@ -37,6 +37,7 @@ export const env = {
     dbPassword: process.env.DB_PASSWORD ?? "",
     dbName: process.env.DB_NAME ?? "payxpress_api",
     paymentGatewayEnabled: toBoolean(process.env.PAYMENT_GATEWAY_ENABLED, true),
+    paymentGateway: (process.env.PAYMENT_GATEWAY ?? "cashfree").toLowerCase(),
     cashfreeMode: process.env.CASHFREE_MODE === "production" ? "production" : "sandbox",
     cashfreeAppId:
         process.env.CASHFREE_MODE === "production"
@@ -47,6 +48,16 @@ export const env = {
             ? process.env.CASHFREE_PRODUCTION_SECRET_KEY ?? process.env.CASHFREE_SECRET_KEY ?? ""
             : process.env.CASHFREE_SANDBOX_SECRET_KEY ?? process.env.CASHFREE_SECRET_KEY ?? "",
     cashfreeApiVersion: process.env.CASHFREE_API_VERSION ?? "2023-08-01",
+    razorpayMode: process.env.RAZORPAY_MODE === "production" ? "production" : "sandbox",
+    razorpayKeyId:
+        process.env.RAZORPAY_MODE === "production"
+            ? process.env.RAZORPAY_PRODUCTION_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? ""
+            : process.env.RAZORPAY_SANDBOX_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
+    razorpayKeySecret:
+        process.env.RAZORPAY_MODE === "production"
+            ? process.env.RAZORPAY_PRODUCTION_KEY_SECRET ?? process.env.RAZORPAY_KEY_SECRET ?? ""
+            : process.env.RAZORPAY_SANDBOX_KEY_SECRET ?? process.env.RAZORPAY_KEY_SECRET ?? "",
+    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
     smtpHost: process.env.SMTP_HOST ?? "",
     smtpPort: toNumber(process.env.SMTP_PORT, 587),
     smtpSecure: toBoolean(process.env.SMTP_SECURE, false),

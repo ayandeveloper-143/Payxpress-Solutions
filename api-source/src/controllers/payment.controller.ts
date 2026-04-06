@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
@@ -99,9 +99,97 @@ type BillRow = RowDataPacket & {
     carts: unknown;
 };
 
+type BillRecord = RowDataPacket & {
+    orderid: string;
+    txnid: string | null;
+    uid: string;
+    carts: unknown;
+    billing_address: string;
+    data: unknown;
+    status: string;
+    gst_type: string;
+    gst_percent: number;
+    gst_amount: number;
+    cgst_amount: number;
+    sgst_amount: number;
+    gateway_fee: number;
+    total: number;
+    created_at: Date | string;
+    updated_at: Date | string;
+};
+
 type UserOrderHistoryRow = RowDataPacket & {
     order_history: unknown;
 };
+
+// ---------- Razorpay types ----------
+
+type RazorpayOrderResponse = {
+    id?: string;
+    entity?: string;
+    amount?: number;
+    currency?: string;
+    receipt?: string;
+    status?: string;
+    error?: string;
+    description?: string;
+};
+
+type RazorpayPaymentDetails = {
+    id?: string;
+    order_id?: string;
+    amount?: number;
+    currency?: string;
+    status?: string;
+    method?: string;
+    vpa?: string;
+    bank?: string;
+    wallet?: string;
+    card_id?: string;
+    card?: {
+        network?: string;
+        last4?: string;
+        issuer?: string;
+    };
+    created_at?: number;
+    description?: string;
+    error_description?: string;
+};
+
+const createRazorpayOrderSchema = z.object({
+    customerName: z.string().trim().min(2).max(100),
+    customerEmail: z.string().trim().email().max(255),
+    customerPhone: z.string().trim().min(10).max(20),
+    billingAddress: z.preprocess(
+        (value) => {
+            if (typeof value === "string" && value.trim().length === 0) {
+                return undefined;
+            }
+            return value;
+        },
+        z
+            .union([
+                z.string().trim().min(5).max(500),
+                z.object({
+                    fullName: z.string().trim().min(2).max(100),
+                    country: z.string().trim().min(2).max(80),
+                    city: z.string().trim().min(2).max(100),
+                    state: z.string().trim().min(2).max(100),
+                    pincode: z.string().trim().min(3).max(20),
+                    address1: z.string().trim().min(5).max(300),
+                    address2: z.string().trim().max(300).optional(),
+                }),
+            ])
+            .optional()
+    ),
+    orderNote: z.string().trim().max(200).optional(),
+});
+
+const verifyRazorpayPaymentSchema = z.object({
+    razorpayOrderId: z.string().trim().min(1).max(100),
+    razorpayPaymentId: z.string().trim().min(1).max(100),
+    razorpaySignature: z.string().trim().min(1).max(300),
+});
 
 const hashAccessToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -420,6 +508,462 @@ const mergeOrderHistory = (current: OrderHistoryItem[], purchasedSlugs: string[]
     }
 
     return [...historyBySlug.values()];
+};
+
+// ---------- Shared helpers ----------
+
+/**
+ * Authenticate the incoming request via Bearer JWT.
+ * Returns the verified token payload and the raw token string on success,
+ * or sends the appropriate error response and returns null.
+ */
+const authenticateRequest = async (request: Request, response: Response) => {
+    const token = getBearerToken(request);
+    if (!token) {
+        response.status(401).json({ message: "Missing access token." });
+        return null;
+    }
+    const tokenPayload = verifyAccessToken(token);
+    if (!tokenPayload) {
+        response.status(401).json({ message: "Invalid or expired access token." });
+        return null;
+    }
+    const activeToken = await isAccessTokenActive({ token, userUuid: tokenPayload.sub });
+    if (!activeToken) {
+        response.status(401).json({ message: "Session expired or logged out." });
+        return null;
+    }
+    return { token, tokenPayload };
+};
+
+type CartOrderDetails = {
+    user: UserCartRow;
+    cartItems: Array<{
+        item_id: string;
+        item_name: string;
+        item_description: string;
+        item_tags: string[];
+        item_details_url: string;
+        item_image_url: string;
+        item_original_unit_price: number;
+        item_discounted_unit_price: number;
+        item_quantity: number;
+        item_currency: string;
+    }>;
+    subtotal: number;
+    gstAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    gatewayFee: number;
+    total: number;
+    gstPercent: number;
+    gatewayFeePercent: number;
+    gstType: string;
+    breakdown: Record<string, unknown>;
+    invoiceId: string;
+};
+
+/**
+ * Build cart order details for a given user UUID.
+ * Fetches the cart from DB, resolves product prices and calculates all totals.
+ * Returns null and sends an appropriate error response on failure.
+ */
+const buildCartOrderDetails = async (
+    userUuid: string,
+    response: Response
+): Promise<CartOrderDetails | null> => {
+    const [userRows] = await db.query(
+        `SELECT uuid, name, email, is_verified, cart_items_json FROM users WHERE uuid = ? LIMIT 1`,
+        [userUuid]
+    );
+    const user = (userRows as UserCartRow[])[0];
+    if (!user || !user.is_verified) {
+        response.status(401).json({ message: "User no longer authorized." });
+        return null;
+    }
+
+    const userCart = parseStoredCart(user.cart_items_json);
+    if (userCart.length === 0) {
+        response.status(400).json({ message: "Cart is empty." });
+        return null;
+    }
+
+    const slugs = [...new Set(userCart.map((item) => item.slug))];
+    const placeholders = slugs.map(() => "?").join(", ");
+    const [productRows] = await db.query<ProductPriceRow[]>(
+        `SELECT slug, title, description, tag, image, price_label, cart_limit FROM products WHERE slug IN (${placeholders}) AND is_active = 1`,
+        slugs
+    );
+    const productBySlug = new Map(productRows.map((row) => [row.slug, row]));
+
+    const cartItems = userCart.reduce<CartOrderDetails["cartItems"]>((result, cartItem) => {
+        const product = productBySlug.get(cartItem.slug);
+        if (!product) return result;
+
+        const unitPrice = resolveUnitPrice(product, cartItem);
+        if (!unitPrice) return result;
+
+        const maxQuantity = normalizeCartLimit(product.cart_limit);
+        const quantity = Math.min(cartItem.quantity, maxQuantity);
+
+        result.push({
+            item_id: product.slug,
+            item_name: product.title,
+            item_description: product.description,
+            item_tags: product.tag.split(",").map((tag) => tag.trim()).filter((tag) => tag.length > 0),
+            item_details_url: `${env.clientOrigin.replace(/\/$/, "")}/products/${encodeURIComponent(product.slug)}`,
+            item_image_url: toAbsoluteUrl(product.image),
+            item_original_unit_price: unitPrice,
+            item_discounted_unit_price: unitPrice,
+            item_quantity: quantity,
+            item_currency: "INR",
+        });
+        return result;
+    }, []);
+
+    if (cartItems.length === 0) {
+        response.status(400).json({ message: "No active products found in cart for checkout." });
+        return null;
+    }
+
+    const subtotal = Number(
+        cartItems.reduce((total, item) => total + item.item_discounted_unit_price * item.item_quantity, 0).toFixed(2)
+    );
+
+    if (!Number.isFinite(subtotal) || subtotal <= 0) {
+        response.status(400).json({ message: "Invalid order amount from cart." });
+        return null;
+    }
+
+    const gstPercent = env.gstPercent;
+    const gatewayFeePercent = env.gatewayFeePercent;
+    const gstType = env.gstType;
+
+    let gstAmount = 0, cgstAmount = 0, sgstAmount = 0, gatewayFee = 0, total = 0;
+    let netAfterGST = 0, netAfterGateway = 0;
+
+    if (gstType === "included") {
+        total = subtotal;
+        gstAmount = Number((total - (total / (1 + gstPercent / 100))).toFixed(2));
+        netAfterGST = Number((total - gstAmount).toFixed(2));
+        gatewayFee = Number((total * gatewayFeePercent / 100).toFixed(2));
+        netAfterGateway = Number((netAfterGST - gatewayFee).toFixed(2));
+        cgstAmount = Number((gstAmount / 2).toFixed(2));
+        sgstAmount = Number((gstAmount / 2).toFixed(2));
+    } else {
+        gstAmount = Number(((subtotal * gstPercent) / 100).toFixed(2));
+        cgstAmount = Number((gstAmount / 2).toFixed(2));
+        sgstAmount = Number((gstAmount / 2).toFixed(2));
+        gatewayFee = Number((((subtotal + gstAmount) * gatewayFeePercent) / 100).toFixed(2));
+        total = subtotal + gstAmount + gatewayFee;
+        netAfterGST = subtotal;
+        netAfterGateway = subtotal - gatewayFee;
+    }
+
+    let breakdown: Record<string, unknown>;
+    if (gstType === "included") {
+        breakdown = {
+            type: "included",
+            label: "Price (incl. GST & fees)",
+            price: total,
+            gstPercent,
+            gstIncluded: gstAmount,
+            gatewayFeePercent,
+            gatewayFee,
+            netAfterGST,
+            netAfterGateway,
+            total,
+            breakdown: { total, gstIncluded: gstAmount, cgst: cgstAmount, sgst: sgstAmount, gatewayFee, netRevenue: netAfterGateway },
+            message: "All taxes and charges included.",
+        };
+    } else {
+        breakdown = {
+            type: "extra",
+            subtotal,
+            gstPercent,
+            gstAmount,
+            cgstAmount,
+            sgstAmount,
+            gatewayFeePercent,
+            gatewayFee,
+            total,
+            message: "Taxes and charges are added on top.",
+        };
+    }
+
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const ms = String(Date.now() % 1000).padStart(3, "0");
+    const invoiceId = `INV-${y}${m}${d}${ms}`;
+
+    return { user, cartItems, subtotal, gstAmount, cgstAmount, sgstAmount, gatewayFee, total, gstPercent, gatewayFeePercent, gstType, breakdown, invoiceId };
+};
+
+/**
+ * Fetch Razorpay payment details from the Razorpay API.
+ * Returns null on failure (non-fatal; invoice template will gracefully degrade).
+ */
+const fetchRazorpayPaymentDetails = async (paymentId: string): Promise<RazorpayPaymentDetails | null> => {
+    try {
+        const credentials = Buffer.from(`${env.razorpayKeyId}:${env.razorpayKeySecret}`).toString("base64");
+        const res = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+            headers: { Authorization: `Basic ${credentials}` },
+        });
+        if (!res.ok) return null;
+        return (await res.json().catch(() => null)) as RazorpayPaymentDetails | null;
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * Map a Razorpay payment details object into a Cashfree-compatible `payment_method` shape
+ * so the shared invoice template works for both gateways.
+ */
+const mapRazorpayMethodToCashfreeFormat = (details: RazorpayPaymentDetails): Record<string, unknown> => {
+    const method = details.method ?? "unknown";
+    switch (method) {
+        case "upi":
+            return { upi: { upi_id: details.vpa ?? "" } };
+        case "card":
+            return { card: { card_network: details.card?.network ?? "", card_last4: details.card?.last4 ?? "" } };
+        case "netbanking":
+            return { netbanking: { bank_name: details.bank ?? "" } };
+        case "wallet":
+            return { wallet: { wallet_name: details.wallet ?? "" } };
+        case "emi":
+            return { emi: { bank_name: details.bank ?? "" } };
+        case "paylater":
+            return { paylater: { provider: details.description ?? "" } };
+        default:
+            return { [method]: {} };
+    }
+};
+
+/**
+ * Generate invoice PDF and send payment-success email for a completed order.
+ * Mirrors the logic in cashfreeWebhook so both gateways produce invoices.
+ */
+const generateInvoiceAndSendEmail = async (billData: BillRecord): Promise<void> => {
+    try {
+        const path = await import("path");
+        const { generatePdfFromHtml } = await import("../utils/pdf.js");
+
+        let billJson: Record<string, unknown> = {};
+        try {
+            billJson = typeof billData.data === "string"
+                ? JSON.parse(billData.data)
+                : (toJsonRecord(billData.data) ?? {});
+        } catch { /* continue with empty billJson */ }
+
+        // Read invoice from nested order_tags
+        const orderObj = toJsonRecord((billJson?.data as Record<string, unknown>)?.order as unknown);
+        const orderTagsObj = toJsonRecord(orderObj?.order_tags as unknown);
+        const invoiceNoFinal = readString(orderTagsObj, "INVOICE") || billData.orderid || "";
+
+        const cartRaw = billData.carts;
+        const cart = typeof cartRaw === "string" ? JSON.parse(cartRaw) : cartRaw;
+        const cartItems: Record<string, unknown>[] = Array.isArray((cart as Record<string, unknown>)?.cart_items)
+            ? (cart as Record<string, unknown>).cart_items as Record<string, unknown>[]
+            : [];
+
+        const itemsHtml = cartItems.map((item) => `
+            <tr>
+                <td>
+                    <div class="product-name">${item.item_name}</div>
+                    <div class="product-desc">${item.item_description || ""}</div>
+                </td>
+                <td>${Array.isArray(item.item_tags) ? (item.item_tags as string[]).join(", ") : ""}</td>
+                <td>${item.item_quantity}</td>
+                <td>₹${item.item_discounted_unit_price}</td>
+                <td>₹${(Number(item.item_discounted_unit_price) * Number(item.item_quantity))}</td>
+            </tr>
+        `).join("");
+
+        const dataObj = toJsonRecord((billJson?.data as Record<string, unknown>));
+        const paymentObj = toJsonRecord(dataObj?.payment as unknown);
+        const customerObj = toJsonRecord(dataObj?.customer_details as unknown);
+
+        let paymentMethod = "";
+        let paymentDetails = "";
+        const methodObj = toJsonRecord(paymentObj?.payment_method as unknown);
+        if (methodObj) {
+            const keys = Object.keys(methodObj);
+            if (keys.length === 1) {
+                const key = keys[0];
+                const value = toJsonRecord(methodObj[key] as unknown);
+                switch (key) {
+                    case "upi":
+                        paymentMethod = "UPI";
+                        paymentDetails = `UPI ID: ${readString(value, "upi_id") ?? ""}`;
+                        break;
+                    case "card":
+                        paymentMethod = "Card";
+                        paymentDetails = `Card: ${readString(value, "card_network") ?? ""} ****${readString(value, "card_last4") ?? ""}`;
+                        break;
+                    case "netbanking":
+                        paymentMethod = "Netbanking";
+                        paymentDetails = `Bank: ${readString(value, "bank_name") ?? ""}`;
+                        break;
+                    case "wallet":
+                        paymentMethod = "Wallet";
+                        paymentDetails = `Wallet: ${readString(value, "wallet_name") ?? readString(value, "channel") ?? ""}`;
+                        break;
+                    case "paylater":
+                        paymentMethod = "PayLater";
+                        paymentDetails = `Provider: ${readString(value, "provider") ?? ""}`;
+                        break;
+                    case "emi":
+                        paymentMethod = "EMI";
+                        paymentDetails = `Bank: ${readString(value, "bank_name") ?? ""}`;
+                        break;
+                    case "app":
+                        paymentMethod = readString(value, "channel") ?? "App";
+                        paymentDetails = readString(value, "upi_id") ? `UPI ID: ${readString(value, "upi_id")}` : "";
+                        break;
+                    default:
+                        paymentMethod = key.charAt(0).toUpperCase() + key.slice(1);
+                        paymentDetails = value ? Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
+                }
+            }
+        }
+
+        const paymentTimeRaw = readString(paymentObj, "payment_time") ?? String(billData.created_at ?? new Date().toISOString());
+        const paymentTimeStr = new Date(paymentTimeRaw).toLocaleString("en-IN", {
+            day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+        });
+        const createdDateStr = new Date(String(billData.created_at ?? new Date().toISOString())).toLocaleDateString("en-IN", {
+            day: "2-digit", month: "short", year: "numeric",
+        });
+
+        const paymentId = readString(paymentObj, "cf_payment_id") || readString(paymentObj, "payment_id") || "";
+        const bankRef = readString(paymentObj, "bank_reference") || "";
+        const customerName = readString(customerObj, "customer_name") || "";
+        const customerEmail = readString(customerObj, "customer_email") || readString(customerObj, "email") || "";
+        const customerPhone = readString(customerObj, "customer_phone") || readString(customerObj, "phone") || "";
+        const billingAddress = billData.billing_address;
+        const orderId = billData.orderid;
+        const total = billData.total;
+        const gstPercent = billData.gst_percent;
+        const gstAmount = billData.gst_amount;
+        const gatewayFee = billData.gateway_fee;
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice - PayXpress</title>
+    <style>body { font-family: 'Inter', sans-serif; padding: 30px; } .invoice { max-width: 900px; margin: auto; background: #fff; padding: 45px; } .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 25px; border-bottom: 1px solid #eee; } .brand { font-size: 24px; font-weight: 700; color: #111; margin-bottom: 8px; } .company-info { font-size: 13px; color: #666; line-height: 1.7; } .meta { text-align: right; font-size: 13px; color: #444; line-height: 1.8; } .status { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 8px; background: #e8f0fe; color: #1a73e8; font-weight: 600; font-size: 12px; } .section { margin-top: 35px; } .grid { display: flex; gap: 40px; } .box { flex: 1; font-size: 14px; line-height: 1.7; } .title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #888; text-transform: uppercase; } table { width: 100%; border-collapse: collapse; margin-top: 15px; } th { text-align: left; padding: 12px; font-size: 12px; color: #777; background: #fafafa; border-bottom: 1px solid #eee; } td { padding: 14px 12px; border-bottom: 1px solid #f1f1f1; font-size: 14px; } .product-name { font-weight: 600; margin-bottom: 4px; } .product-desc { font-size: 12px; color: #888; } .total-box { margin-top: 85px; display: flex; justify-content: flex-end; } .total { width: 260px; font-size: 14px; } .total-row { display: flex; justify-content: space-between; padding: 6px 0; } .gst-row { display: flex; justify-content: space-between; padding: 6px 0; } .fees-row { display: flex; justify-content: space-between; padding: 6px 0; } .grand-total { font-size: 18px; font-weight: 700; color: #111; margin-top: 8px; border-top: 1px solid #eee; padding-top: 10px; } .footer { margin-top: 40px; font-size: 12px; color: #777; } .brand img { height: 48px; width: auto; object-fit: contain; display: block; margin-bottom: 6px; }</style>
+</head>
+<body>
+    <div class="invoice">
+        <div class="header">
+            <div>
+                <div class="brand">
+                    <img src="https://payxpress-solutions.com/logo.png" alt="PayXpress Logo">
+                </div>
+                <div class="company-info">
+                    Bareya, West Bengal 713512<br>
+                    Phone: 085095 17215<br>
+                    GSTIN: 19CFDPM7789E1ZV
+                </div>
+            </div>
+            <div class="meta">
+                <div><b>Invoice:</b> ${invoiceNoFinal}</div>
+                <div><b>Order ID:</b> ${orderId}</div>
+                <div><b>Date:</b> ${createdDateStr}</div>
+                <div class="status">Completed</div>
+            </div>
+        </div>
+        <div class="section grid">
+            <div class="box">
+                <div class="title">Billing Details</div>
+                ${customerName}<br>
+                ${customerEmail}<br>
+                ${customerPhone}<br>
+                ${billingAddress}<br>
+                India
+            </div>
+            <div class="box">
+                <div class="title">Payment Info</div>
+                Method: ${paymentMethod}<br>
+                ${paymentDetails ? paymentDetails + "<br>" : ""}
+                Payment ID: ${paymentId}<br>
+                Bank Ref: ${bankRef}<br>
+                Time: ${paymentTimeStr}
+            </div>
+        </div>
+        <div class="section">
+            <div class="title">Order Summary</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>${itemsHtml}</tbody>
+            </table>
+        </div>
+        <div class="total-box">
+            <div class="total">
+                <div class="total-row">
+                    <span>Price (incl. GST &amp; fees)</span>
+                    <span>₹${total}</span>
+                </div>
+                <div class="gst-row">
+                    <span>GST included (${gstPercent}%)</span>
+                    <span>₹${gstAmount}</span>
+                </div>
+                <div class="fees-row">
+                    <span>Gateway Fee (${gatewayFee ? ((Number(gatewayFee) / Number(total)) * 100).toFixed(0) : 2}%)</span>
+                    <span>₹${gatewayFee}</span>
+                </div>
+                <div class="total-row grand-total">
+                    <span>Total</span>
+                    <span>₹${total}</span>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            Admin: Anshuman Mondal
+        </div>
+    </div>
+</body>
+</html>`;
+
+        const invoiceLabel = invoiceNoFinal || orderId;
+        const userId = billData.uid;
+        const outputDir = path.resolve("public/bills", userId);
+        const outputPath = path.join(outputDir, `${invoiceLabel}.pdf`);
+
+        await generatePdfFromHtml(html, outputPath);
+
+        try {
+            const { sendPaymentSuccessEmail } = await import("../services/auth-mail.service.js");
+            if (customerEmail) {
+                await sendPaymentSuccessEmail({
+                    to: customerEmail,
+                    name: customerName || "Customer",
+                    orderId,
+                    invoiceId: invoiceLabel,
+                    amount: Number(total),
+                    paymentMethod,
+                    paymentTime: paymentTimeStr,
+                    pdfPath: outputPath,
+                });
+            }
+        } catch (mailErr) {
+            console.error("Payment success email failed:", mailErr);
+        }
+    } catch (pdfErr) {
+        console.error("PDF generation failed:", pdfErr);
+    }
 };
 
 export const createCashfreeSession = async (request: Request, response: Response) => {
@@ -869,7 +1413,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
         }
 
         // Check for duplicate webhook (already success)
-        const [existingBillRows] = await connection.query<any[]>(
+        const [existingBillRows] = await connection.query<BillRecord[]>(
             `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
             [orderId]
         );
@@ -901,15 +1445,14 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
         }
 
         // PDF generation and email will be done after commit
-        let billForEmail: any = null;
-        let emailPayload: any = null;
+        let billForEmail: BillRecord | null = null;
         if (status === "success") {
             // Fetch all bill data for invoice (for after commit)
-            const [billRows] = await connection.query<any[]>(
+            const [billRows] = await connection.query<BillRecord[]>(
                 `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
                 [orderId]
             );
-            billForEmail = billRows[0];
+            billForEmail = billRows[0] ?? null;
         }
 
         await connection.commit();
@@ -933,214 +1476,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 );
             }
 
-            // --- PDF GENERATION ---
-            try {
-                const path = await import("path");
-                const { generatePdfFromHtml } = await import("../utils/pdf.js");
-
-                // Extract data for template
-                let invoiceNo = "";
-                let billData = billForEmail;
-                let billJson: any = {};
-                try {
-                    billJson = typeof billData.data === "string" ? JSON.parse(billData.data) : billData.data;
-                    invoiceNo = billJson?.data?.order?.order_tags?.INVOICE || "";
-                } catch { }
-
-                // Parse cart items
-                let cart = typeof billData.carts === "string" ? JSON.parse(billData.carts) : billData.carts;
-                let cartItems: any[] = Array.isArray(cart?.cart_items) ? cart.cart_items : [];
-
-                // Build items HTML
-                let itemsHtml = cartItems.map((item: any) => `
-                    <tr>
-                        <td>
-                            <div class="product-name">${item.item_name}</div>
-                            <div class="product-desc">${item.item_description || ""}</div>
-                        </td>
-                        <td>${Array.isArray(item.item_tags) ? item.item_tags.join(", ") : ""}</td>
-                        <td>${item.item_quantity}</td>
-                        <td>₹${item.item_discounted_unit_price}</td>
-                        <td>₹${item.item_discounted_unit_price * item.item_quantity}</td>
-                    </tr>
-                `).join("");
-
-                // Dynamic payment method and details
-                let paymentMethod = "";
-                let paymentDetails = "";
-                const methodObj = billJson?.data?.payment?.payment_method;
-                if (methodObj && typeof methodObj === "object") {
-                    // Get the first key (Cashfree sends only one method per payment)
-                    const keys = Object.keys(methodObj);
-                    if (keys.length === 1) {
-                        const key = keys[0];
-                        const value = methodObj[key];
-                        switch (key) {
-                            case "upi":
-                                paymentMethod = "UPI";
-                                paymentDetails = `UPI ID: ${value.upi_id || ""}`;
-                                break;
-                            case "card":
-                                paymentMethod = "Card";
-                                paymentDetails = `Card: ${value.card_network || ""} ****${value.card_last4 || ""}`;
-                                break;
-                            case "netbanking":
-                                paymentMethod = "Netbanking";
-                                paymentDetails = `Bank: ${value.bank_name || ""}`;
-                                break;
-                            case "wallet":
-                                paymentMethod = "Wallet";
-                                paymentDetails = `Wallet: ${value.wallet_name || value.channel || ""}`;
-                                break;
-                            case "paylater":
-                                paymentMethod = "PayLater";
-                                paymentDetails = `Provider: ${value.provider || ""}`;
-                                break;
-                            case "emi":
-                                paymentMethod = "EMI";
-                                paymentDetails = `Bank: ${value.bank_name || ""}`;
-                                break;
-                            case "app":
-                                paymentMethod = value.channel || "App";
-                                paymentDetails = value.upi_id ? `UPI ID: ${value.upi_id}` : "";
-                                break;
-                            default:
-                                paymentMethod = key.charAt(0).toUpperCase() + key.slice(1);
-                                paymentDetails = Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(", ");
-                                break;
-                        }
-                    }
-                }
-
-                // Format date/time
-                const paymentTime = billJson?.data?.payment?.payment_time || billData.created_at;
-                const paymentTimeStr = new Date(paymentTime).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
-                const createdDateStr = new Date(billData.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-                // Inline HTML template
-                let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Invoice - PayXpress</title>
-    <style>body { font-family: 'Inter', sans-serif; padding: 30px; } .invoice { max-width: 900px; margin: auto; background: #fff; padding: 45px; } .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 25px; border-bottom: 1px solid #eee; } .brand { font-size: 24px; font-weight: 700; color: #111; margin-bottom: 8px; } .company-info { font-size: 13px; color: #666; line-height: 1.7; } .meta { text-align: right; font-size: 13px; color: #444; line-height: 1.8; } .status { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 8px; background: #e8f0fe; color: #1a73e8; font-weight: 600; font-size: 12px; } .section { margin-top: 35px; } .grid { display: flex; gap: 40px; } .box { flex: 1; font-size: 14px; line-height: 1.7; } .title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #888; text-transform: uppercase; } table { width: 100%; border-collapse: collapse; margin-top: 15px; } th { text-align: left; padding: 12px; font-size: 12px; color: #777; background: #fafafa; border-bottom: 1px solid #eee; } td { padding: 14px 12px; border-bottom: 1px solid #f1f1f1; font-size: 14px; } .product-name { font-weight: 600; margin-bottom: 4px; } .product-desc { font-size: 12px; color: #888; } .total-box { margin-top: 85px; display: flex; justify-content: flex-end; } .total { width: 260px; font-size: 14px; } .total-row { display: flex; justify-content: space-between; padding: 6px 0; } .gst-row { display: flex; justify-content: space-between; padding: 6px 0; } .fees-row { display: flex; justify-content: space-between; padding: 6px 0; } .grand-total { font-size: 18px; font-weight: 700; color: #111; margin-top: 8px; border-top: 1px solid #eee; padding-top: 10px; } .footer { margin-top: 40px; font-size: 12px; color: #777; } .brand img { height: 48px; width: auto; object-fit: contain; display: block; margin-bottom: 6px; }</style>
-</head>
-<body>
-    <div class="invoice">
-        <div class="header">
-            <div>
-                <div class="brand">
-                    <img src="https://payxpress-solutions.com/logo.png" alt="PayXpress Logo">
-                </div>
-                <div class="company-info">
-                    Bareya, West Bengal 713512<br>
-                    Phone: 085095 17215<br>
-                    GSTIN: 19CFDPM7789E1ZV
-                </div>
-            </div>
-            <div class="meta">
-                <div><b>Invoice:</b> ${invoiceNo}</div>
-                <div><b>Order ID:</b> ${billData.orderid}</div>
-                <div><b>Date:</b> ${createdDateStr}</div>
-                <div class="status">Completed</div>
-            </div>
-        </div>
-        <div class="section grid">
-            <div class="box">
-                <div class="title">Billing Details</div>
-                ${billJson?.data?.customer_details?.customer_name || ""}<br>
-                ${billJson?.data?.customer_details?.customer_email || ""}<br>
-                ${billJson?.data?.customer_details?.customer_phone || ""}<br>
-                ${billData.billing_address || ""}<br>
-                India
-            </div>
-            <div class="box">
-                <div class="title">Payment Info</div>
-                Method: ${paymentMethod}<br>
-                ${paymentDetails ? paymentDetails + '<br>' : ''}
-                Payment ID: ${billJson?.data?.payment?.cf_payment_id || ""}<br>
-                Bank Ref: ${billJson?.data?.payment?.bank_reference || ""}<br>
-                Time: ${paymentTimeStr}
-            </div>
-        </div>
-        <div class="section">
-            <div class="title">Order Summary</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Product</th>
-                        <th>Category</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>${itemsHtml}</tbody>
-            </table>
-        </div>
-        <div class="total-box">
-            <div class="total">
-                <div class="total-row">
-                    <span>Price (incl. GST & fees)</span>
-                    <span>₹${billData.total}</span>
-                </div>
-                <div class="gst-row">
-                    <span>GST included (${billData.gst_percent}%)</span>
-                    <span>₹${billData.gst_amount}</span>
-                </div>
-                <div class="fees-row">
-                    <span>Gateway Fee (${billData.gateway_fee ? ((billData.gateway_fee / billData.total) * 100).toFixed(0) : 2}%)</span>
-                    <span>₹${billData.gateway_fee}</span>
-                </div>
-                <div class="total-row grand-total">
-                    <span>Total</span>
-                    <span>₹${billData.total}</span>
-                </div>
-            </div>
-        </div>
-        <div class="footer">
-            Admin: Anshuman Mondal
-        </div>
-    </div>
-</body>
-</html>`;
-
-                // Output path
-                const invoiceId = invoiceNo || billData.orderid;
-                const userId = billData.uid;
-                const outputDir = path.resolve("public/bills", userId);
-                const outputPath = path.join(outputDir, `${invoiceId}.pdf`);
-
-                await generatePdfFromHtml(html, outputPath);
-
-                // Send payment success email with PDF
-                try {
-                    const { sendPaymentSuccessEmail } = await import("../services/auth-mail.service.js");
-                    const customerEmail = billJson?.data?.customer_details?.customer_email || billJson?.data?.customer_details?.email || "";
-                    const customerName = billJson?.data?.customer_details?.customer_name || billJson?.data?.customer_details?.name || "Customer";
-                    const orderIdVal = billData.orderid;
-                    const invoiceIdVal = invoiceNo || billData.orderid;
-                    const amountVal = billData.total;
-                    const paymentMethodVal = paymentMethod;
-                    const paymentTimeVal = paymentTimeStr;
-                    if (customerEmail) {
-                        await sendPaymentSuccessEmail({
-                            to: customerEmail,
-                            name: customerName,
-                            orderId: orderIdVal,
-                            invoiceId: invoiceIdVal,
-                            amount: amountVal,
-                            paymentMethod: paymentMethodVal,
-                            paymentTime: paymentTimeVal,
-                            pdfPath: outputPath,
-                        });
-                    }
-                } catch (mailErr) {
-                    console.error("Payment success email failed:", mailErr);
-                }
-            } catch (pdfErr) {
-                console.error("PDF generation failed:", pdfErr);
-            }
+            await generateInvoiceAndSendEmail(billForEmail);
         }
 
         response.status(200).json({
@@ -1158,3 +1494,538 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
         connection?.release();
     }
 }
+
+// ============================================================
+// Razorpay controllers
+// ============================================================
+
+export const createRazorpayOrder = async (request: Request, response: Response) => {
+    try {
+        if (!env.paymentGatewayEnabled) {
+            response.status(503).json({ message: "Payment gateway is currently disabled." });
+            return;
+        }
+
+        if (!env.razorpayKeyId || !env.razorpayKeySecret) {
+            response.status(500).json({ message: "Razorpay credentials are not configured on server." });
+            return;
+        }
+
+        const parsed = createRazorpayOrderSchema.safeParse(request.body);
+        if (!parsed.success) {
+            response.status(400).json({
+                message: "Invalid payment request.",
+                errors: parsed.error.flatten().fieldErrors,
+            });
+            return;
+        }
+
+        const auth = await authenticateRequest(request, response);
+        if (!auth) return;
+
+        const orderDetails = await buildCartOrderDetails(auth.tokenPayload.sub, response);
+        if (!orderDetails) return;
+
+        const { user, cartItems, total, gstAmount, cgstAmount, sgstAmount, gatewayFee, gstType, gstPercent, gatewayFeePercent, breakdown, invoiceId } = orderDetails;
+
+        const data = parsed.data;
+        const receipt = `RZP_${Date.now()}`.slice(0, 40);
+
+        // Razorpay amount is in paise (smallest currency unit)
+        const amountInPaise = Math.round(total * 100);
+
+        const billingAddressRaw =
+            typeof data.billingAddress === "string"
+                ? data.billingAddress
+                : data.billingAddress && typeof data.billingAddress.address1 === "string"
+                    ? data.billingAddress.address1
+                    : "";
+
+        const rzpPayload = {
+            amount: amountInPaise,
+            currency: "INR",
+            receipt,
+            notes: {
+                customer_name: data.customerName || user.name,
+                customer_email: data.customerEmail || user.email,
+                customer_phone: data.customerPhone,
+                order_note: data.orderNote ?? "",
+                invoice_id: invoiceId,
+            },
+        };
+
+        const credentials = Buffer.from(`${env.razorpayKeyId}:${env.razorpayKeySecret}`).toString("base64");
+        const rzpResponse = await fetch("https://api.razorpay.com/v1/orders", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Basic ${credentials}`,
+            },
+            body: JSON.stringify(rzpPayload),
+        });
+
+        const rzpData = (await rzpResponse.json().catch(() => ({}))) as RazorpayOrderResponse;
+
+        if (!rzpResponse.ok || !rzpData.id) {
+            response.status(rzpResponse.status || 502).json({
+                message: typeof rzpData.description === "string"
+                    ? rzpData.description
+                    : "Unable to create Razorpay order.",
+            });
+            return;
+        }
+
+        const razorpayOrderId = rzpData.id;
+
+        const seedData = {
+            event: "razorpay_order_created",
+            gateway: "razorpay",
+            razorpay_order: rzpData,
+            data: {
+                customer_details: {
+                    customer_name: data.customerName || user.name,
+                    customer_email: data.customerEmail || user.email,
+                    customer_phone: data.customerPhone,
+                },
+                order: {
+                    order_id: razorpayOrderId,
+                    order_tags: { INVOICE: invoiceId },
+                },
+            },
+        };
+
+        const cartDetailsForBill = {
+            cart_name: `${user.name} cart`,
+            cart_items: cartItems,
+        };
+
+        await db.query(
+            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                uid = VALUES(uid),
+                carts = VALUES(carts),
+                billing_address = VALUES(billing_address),
+                data = VALUES(data),
+                gst_type = VALUES(gst_type),
+                gst_percent = VALUES(gst_percent),
+                gst_amount = VALUES(gst_amount),
+                cgst_amount = VALUES(cgst_amount),
+                sgst_amount = VALUES(sgst_amount),
+                gateway_fee = VALUES(gateway_fee),
+                total = VALUES(total),
+                status = 'pending',
+                updated_at = CURRENT_TIMESTAMP`,
+            [
+                razorpayOrderId,
+                user.uuid,
+                JSON.stringify(cartDetailsForBill),
+                billingAddressRaw,
+                JSON.stringify(seedData),
+                gstType,
+                gstPercent,
+                gstAmount,
+                cgstAmount,
+                sgstAmount,
+                gatewayFee,
+                total,
+            ]
+        );
+
+        response.status(201).json({
+            breakdown,
+            message: "Razorpay order created.",
+            orderId: razorpayOrderId,
+            amount: amountInPaise,
+            currency: "INR",
+            keyId: env.razorpayKeyId,
+        });
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Unable to create Razorpay order right now." });
+    }
+};
+
+export const verifyRazorpayPayment = async (request: Request, response: Response) => {
+    let connection: PoolConnection | null = null;
+    let transactionStarted = false;
+    try {
+        if (!env.paymentGatewayEnabled) {
+            response.status(503).json({ message: "Payment gateway is currently disabled." });
+            return;
+        }
+
+        if (!env.razorpayKeyId || !env.razorpayKeySecret) {
+            response.status(500).json({ message: "Razorpay credentials are not configured on server." });
+            return;
+        }
+
+        const parsed = verifyRazorpayPaymentSchema.safeParse(request.body);
+        if (!parsed.success) {
+            response.status(400).json({
+                message: "Invalid verification request.",
+                errors: parsed.error.flatten().fieldErrors,
+            });
+            return;
+        }
+
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = parsed.data;
+
+        // Verify HMAC-SHA256 signature: HMAC(orderId + "|" + paymentId, keySecret)
+        const expectedSig = createHmac("sha256", env.razorpayKeySecret)
+            .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+            .digest("hex");
+
+        const expectedBuf = Buffer.from(expectedSig, "hex");
+        const receivedBuf = Buffer.from(razorpaySignature, "hex");
+
+        const signaturesMatch =
+            expectedBuf.length === receivedBuf.length &&
+            timingSafeEqual(expectedBuf, receivedBuf);
+
+        if (!signaturesMatch) {
+            response.status(400).json({ message: "Payment signature verification failed." });
+            return;
+        }
+
+        const auth = await authenticateRequest(request, response);
+        if (!auth) return;
+
+        connection = await db.getConnection();
+
+        // Check if bill exists and belongs to the authenticated user
+        const [billRows] = await connection.query<BillRecord[]>(
+            `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+            [razorpayOrderId]
+        );
+        const bill = billRows[0];
+
+        if (!bill) {
+            response.status(404).json({ message: "Order not found." });
+            return;
+        }
+
+        if (bill.uid !== auth.tokenPayload.sub) {
+            response.status(403).json({ message: "Order does not belong to this user." });
+            return;
+        }
+
+        // If already success, return 200 (idempotent)
+        if (bill.status === "success") {
+            response.status(200).json({ message: "Payment already verified.", orderId: razorpayOrderId });
+            return;
+        }
+
+        // Fetch payment details from Razorpay API for invoice generation
+        const paymentDetails = await fetchRazorpayPaymentDetails(razorpayPaymentId);
+
+        // Build data object for bills table, normalized for invoice template
+        const paymentMethodObj = paymentDetails ? mapRazorpayMethodToCashfreeFormat(paymentDetails) : {};
+        const paymentTime = paymentDetails?.created_at
+            ? new Date(paymentDetails.created_at * 1000).toISOString()
+            : new Date().toISOString();
+
+        // Parse existing seed data for customer details
+        let existingData: Record<string, unknown> = {};
+        try {
+            existingData = typeof bill.data === "string" ? JSON.parse(bill.data) : (bill.data ?? {});
+        } catch { /* ignore */ }
+
+        const existingCustomerDetails = toJsonRecord(
+            toJsonRecord((existingData as Record<string, unknown>)?.data as unknown)?.customer_details as unknown
+        );
+
+        const updatedData = {
+            ...(existingData as Record<string, unknown>),
+            event: "razorpay_payment_verified",
+            gateway: "razorpay",
+            razorpay_payment_id: razorpayPaymentId,
+            data: {
+                customer_details: {
+                    customer_name: readString(existingCustomerDetails, "customer_name") ?? "",
+                    customer_email: readString(existingCustomerDetails, "customer_email") ?? "",
+                    customer_phone: readString(existingCustomerDetails, "customer_phone") ?? "",
+                },
+                payment: {
+                    cf_payment_id: razorpayPaymentId,
+                    payment_id: razorpayPaymentId,
+                    payment_status: "SUCCESS",
+                    payment_time: paymentTime,
+                    payment_method: paymentMethodObj,
+                    bank_reference: "",
+                },
+                order: {
+                    order_id: razorpayOrderId,
+                    order_tags: toJsonRecord(
+                        toJsonRecord(toJsonRecord((existingData as Record<string, unknown>)?.data as unknown)?.order as unknown)?.order_tags as unknown
+                    ) ?? { INVOICE: "" },
+                },
+            },
+        };
+
+        await connection.beginTransaction();
+        transactionStarted = true;
+
+        const [updateResult] = await connection.query<ResultSetHeader>(
+            `UPDATE bills
+             SET txnid = ?,
+                 data = CAST(? AS JSON),
+                 status = 'success',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE orderid = ?
+               AND status != 'success'`,
+            [razorpayPaymentId, JSON.stringify(updatedData), razorpayOrderId]
+        );
+
+        if (updateResult.affectedRows === 0) {
+            await connection.rollback();
+            transactionStarted = false;
+            // Race condition: webhook already set it to success
+            response.status(200).json({ message: "Payment already verified.", orderId: razorpayOrderId });
+            return;
+        }
+
+        await connection.commit();
+        transactionStarted = false;
+
+        // Update user order history
+        const purchasedSlugs = parseBillCartSlugs(bill.carts);
+        if (purchasedSlugs.length > 0) {
+            const [userRows] = await db.query<UserOrderHistoryRow[]>(
+                `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
+                [auth.tokenPayload.sub]
+            );
+            const existingHistory = parseOrderHistory(userRows[0]?.order_history);
+            const purchasedAt = new Date().toISOString();
+            const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
+            await db.query(
+                `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
+                [JSON.stringify(nextHistory), auth.tokenPayload.sub]
+            );
+        }
+
+        // Fetch updated bill for invoice generation
+        const [updatedBillRows] = await db.query<BillRecord[]>(
+            `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+            [razorpayOrderId]
+        );
+        const updatedBill = updatedBillRows[0];
+        if (updatedBill) {
+            await generateInvoiceAndSendEmail(updatedBill);
+        }
+
+        response.status(200).json({ message: "Payment verified successfully.", orderId: razorpayOrderId });
+    } catch (error) {
+        if (connection && transactionStarted) {
+            await connection.rollback().catch(() => undefined);
+        }
+        console.error(error);
+        response.status(500).json({ message: "Unable to verify payment right now." });
+    } finally {
+        connection?.release();
+    }
+};
+
+export const getRazorpayOrderStatus = async (request: Request, response: Response) => {
+    try {
+        if (!env.paymentGatewayEnabled) {
+            response.status(503).json({ message: "Payment gateway is currently disabled." });
+            return;
+        }
+
+        const rawOrderId = request.params.orderId;
+        const orderId = (Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId ?? "").trim();
+
+        if (orderId.length < 3) {
+            response.status(400).json({ message: "Invalid order id." });
+            return;
+        }
+
+        const [billRows] = await db.query<BillRecord[]>(
+            `SELECT status FROM bills WHERE orderid = ? LIMIT 1`,
+            [orderId]
+        );
+        const bill = billRows[0];
+
+        if (!bill) {
+            response.status(404).json({ message: "Order not found." });
+            return;
+        }
+
+        let orderStatus: "Success" | "Pending" | "Failure";
+        if (bill.status === "success") {
+            orderStatus = "Success";
+        } else if (bill.status === "pending") {
+            orderStatus = "Pending";
+        } else {
+            orderStatus = "Failure";
+        }
+
+        response.status(200).json({ orderId, orderStatus });
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Unable to fetch order status right now." });
+    }
+};
+
+/**
+ * Handles Razorpay webhook events.
+ * The route must be mounted with express.raw() so that request.body is the
+ * raw Buffer needed for HMAC-SHA256 signature verification.
+ */
+export const razorpayWebhook = async (request: Request, response: Response) => {
+    let connection: PoolConnection | null = null;
+    let transactionStarted = false;
+    try {
+        // Validate webhook secret is configured
+        if (!env.razorpayWebhookSecret) {
+            console.error("Razorpay webhook secret not configured.");
+            response.status(500).json({ message: "Webhook secret not configured." });
+            return;
+        }
+
+        const signature = request.headers["x-razorpay-signature"];
+        if (typeof signature !== "string" || !signature) {
+            response.status(400).json({ message: "Missing webhook signature." });
+            return;
+        }
+
+        // request.body is a Buffer when express.raw() middleware is used
+        const rawBody: Buffer = Buffer.isBuffer(request.body)
+            ? request.body
+            : Buffer.from(JSON.stringify(request.body ?? {}));
+
+        const expectedSig = createHmac("sha256", env.razorpayWebhookSecret)
+            .update(rawBody)
+            .digest("hex");
+
+        const expectedBuf = Buffer.from(expectedSig, "hex");
+        const receivedBuf = Buffer.from(signature, "hex");
+
+        const signaturesMatch =
+            expectedBuf.length === receivedBuf.length &&
+            timingSafeEqual(expectedBuf, receivedBuf);
+
+        if (!signaturesMatch) {
+            response.status(400).json({ message: "Invalid webhook signature." });
+            return;
+        }
+
+        let payload: Record<string, unknown>;
+        try {
+            payload = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
+        } catch {
+            response.status(400).json({ message: "Invalid webhook payload." });
+            return;
+        }
+
+        const event = typeof payload.event === "string" ? payload.event : "";
+
+        // Extract order_id and payment_id from Razorpay webhook payload
+        const payloadObj = toJsonRecord(payload.payload as unknown);
+        const paymentEntity = toJsonRecord(toJsonRecord(payloadObj?.payment as unknown)?.entity as unknown);
+        const orderId = readString(paymentEntity, "order_id");
+        const txnId = readString(paymentEntity, "id");
+        const paymentStatusRaw = readString(paymentEntity, "status");
+
+        if (!orderId) {
+            response.status(400).json({ message: "Missing order_id in webhook payload." });
+            return;
+        }
+
+        // Map Razorpay event/status to internal status
+        let status: "success" | "failed" | "pending";
+        if (event === "payment.captured" || paymentStatusRaw === "captured") {
+            status = "success";
+        } else if (event === "payment.failed" || paymentStatusRaw === "failed") {
+            status = "failed";
+        } else {
+            // Acknowledge other events without processing
+            response.status(200).json({ message: "Event acknowledged." });
+            return;
+        }
+
+        connection = await db.getConnection();
+
+        const [existingBillRows] = await connection.query<BillRecord[]>(
+            `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+            [orderId]
+        );
+        const existingBill = existingBillRows[0];
+
+        if (!existingBill) {
+            response.status(404).json({ message: "Order not found." });
+            return;
+        }
+
+        if (existingBill.status === "success") {
+            // Already processed (verify endpoint handled it first)
+            response.status(200).json({ message: "Already processed." });
+            return;
+        }
+
+        await connection.beginTransaction();
+        transactionStarted = true;
+
+        const [updateResult] = await connection.query<ResultSetHeader>(
+            `UPDATE bills
+             SET txnid = COALESCE(?, txnid),
+                 data = CAST(? AS JSON),
+                 status = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE orderid = ?
+               AND status != 'success'`,
+            [txnId, JSON.stringify(payload), status, orderId]
+        );
+
+        if (updateResult.affectedRows === 0) {
+            await connection.rollback();
+            transactionStarted = false;
+            response.status(200).json({ message: "Already processed." });
+            return;
+        }
+
+        let billForEmail: BillRecord | null = null;
+        if (status === "success") {
+            const [billRows] = await connection.query<BillRecord[]>(
+                `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+                [orderId]
+            );
+            billForEmail = billRows[0] ?? null;
+        }
+
+        await connection.commit();
+        transactionStarted = false;
+
+        if (status === "success" && billForEmail) {
+            // Update user order history
+            const purchasedSlugs = parseBillCartSlugs(billForEmail.carts);
+            if (purchasedSlugs.length > 0) {
+                const [userRows] = await db.query<UserOrderHistoryRow[]>(
+                    `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
+                    [billForEmail.uid]
+                );
+                const existingHistory = parseOrderHistory(userRows[0]?.order_history);
+                const purchasedAt = new Date().toISOString();
+                const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
+                await db.query(
+                    `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
+                    [JSON.stringify(nextHistory), billForEmail.uid]
+                );
+            }
+
+            // Generate invoice and send email (webhook may arrive before verify in some edge cases)
+            await generateInvoiceAndSendEmail(billForEmail);
+        }
+
+        response.status(200).json({ message: "Webhook processed.", orderId, status });
+    } catch (error) {
+        if (connection && transactionStarted) {
+            await connection.rollback().catch(() => undefined);
+        }
+        console.error(error);
+        response.status(500).json({ message: "Unable to process webhook right now." });
+    } finally {
+        connection?.release();
+    }
+};

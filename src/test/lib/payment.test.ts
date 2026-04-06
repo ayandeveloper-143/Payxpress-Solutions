@@ -8,9 +8,13 @@ vi.mock("@cashfreepayments/cashfree-js", () => ({
   load: () => mockLoad(),
 }));
 
-vi.mock("@/lib/api", () => ({
-  createCashfreeSession: (...args: unknown[]) => mockCreateSession(...args),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    createCashfreeSession: (...args: unknown[]) => mockCreateSession(...args),
+  };
+});
 
 // Import after mocks so that the module receives the mocked dependencies.
 import { handleCashfreePayment } from "@/lib/payment";

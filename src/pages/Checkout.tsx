@@ -13,11 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
-import { handleCashfreePayment } from "@/lib/payment";
+import { handleCashfreePayment, handleRazorpayPayment } from "@/lib/payment";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 const paymentGatewayEnabled = import.meta.env.VITE_PAYMENT_GATEWAY_ENABLED !== "false";
+const paymentGateway = (import.meta.env.VITE_PAYMENT_GATEWAY ?? "cashfree").toLowerCase();
 
 const checkoutSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -115,14 +116,19 @@ const Checkout = () => {
       // Always sync cart to server before payment (prevents empty cart bug)
       await syncCartToServer();
 
-      // Call Cashfree payment
-      const result = await handleCashfreePayment({
+      // Call the active payment gateway
+      const paymentParams = {
         customerName: values.name,
         customerEmail: values.email,
         customerPhone: values.phone,
         billingAddress: values.address?.trim() || undefined,
         orderNote: `Order by ${values.name}`,
-      });
+      };
+
+      const result =
+        paymentGateway === "razorpay"
+          ? await handleRazorpayPayment(paymentParams)
+          : await handleCashfreePayment(paymentParams);
 
       if (result.success === true && result.orderId) {
         navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}`);

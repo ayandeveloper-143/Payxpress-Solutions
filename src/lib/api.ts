@@ -217,6 +217,62 @@ export const fetchCashfreeOrderStatus = (orderId: string) =>
         method: "GET",
     });
 
+// ---- Razorpay API types and functions ----
+
+export interface CreateRazorpayOrderPayload {
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    billingAddress?: string;
+    orderNote?: string;
+}
+
+export interface CreateRazorpayOrderResponse {
+    message: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    keyId: string;
+    breakdown?: Record<string, unknown>;
+}
+
+export interface VerifyRazorpayPaymentPayload {
+    razorpayOrderId: string;
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+}
+
+export interface VerifyRazorpayPaymentResponse {
+    message: string;
+    orderId: string;
+}
+
+export interface RazorpayOrderStatusResponse {
+    orderId: string;
+    orderStatus: "Success" | "Pending" | "Failure";
+}
+
+export const createRazorpayOrder = (payload: CreateRazorpayOrderPayload) =>
+    request<CreateRazorpayOrderResponse>("/payments/razorpay/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        requiresAuth: true,
+        body: JSON.stringify(payload),
+    });
+
+export const verifyRazorpayPayment = (payload: VerifyRazorpayPaymentPayload) =>
+    request<VerifyRazorpayPaymentResponse>("/payments/razorpay/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        requiresAuth: true,
+        body: JSON.stringify(payload),
+    });
+
+export const fetchRazorpayOrderStatus = (orderId: string) =>
+    request<RazorpayOrderStatusResponse>(`/payments/razorpay/orders/${encodeURIComponent(orderId)}/status`, {
+        method: "GET",
+    });
+
 export const loginUser = (payload: LoginPayload) =>
     request<LoginResponse>("/auth/login", {
         method: "POST",

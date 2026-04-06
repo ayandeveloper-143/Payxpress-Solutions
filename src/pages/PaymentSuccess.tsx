@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { fetchCashfreeOrderStatus } from "@/lib/api";
+import { fetchCashfreeOrderStatus, fetchRazorpayOrderStatus } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
+const paymentGateway = (import.meta.env.VITE_PAYMENT_GATEWAY ?? "cashfree").toLowerCase();
 
 
 const PaymentSuccess = () => {
@@ -26,7 +27,12 @@ const PaymentSuccess = () => {
             return;
         }
 
-        fetchCashfreeOrderStatus(orderId)
+        const fetchStatus =
+            paymentGateway === "razorpay"
+                ? fetchRazorpayOrderStatus(orderId)
+                : fetchCashfreeOrderStatus(orderId);
+
+        fetchStatus
             .then((data) => {
                 if (data.orderStatus !== "Success") {
                     navigate("/checkout", { replace: true });
