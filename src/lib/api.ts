@@ -496,8 +496,35 @@ export interface AdminDeliveryLogsResponse {
     limit: number;
 }
 
-export const fetchAdminDeliveryLogs = (page = 1) =>
-    adminRequest<AdminDeliveryLogsResponse>(`/admin/delivery-logs?page=${page}`);
+export const fetchAdminDeliveryLogs = (page = 1, search = "", event = "") => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (search) params.set("search", search);
+    if (event) params.set("event", event);
+    return adminRequest<AdminDeliveryLogsResponse>(`/admin/delivery-logs?${params.toString()}`);
+};
+
+export interface AdminEmailLog {
+    id: number;
+    recipient: string;
+    subject: string;
+    email_type: string;
+    status: "sent" | "failed" | "skipped";
+    error_msg: string | null;
+    created_at: string;
+}
+
+export interface AdminEmailLogsResponse {
+    logs: AdminEmailLog[];
+    total: number;
+    page: number;
+    limit: number;
+}
+
+export const fetchAdminEmailLogs = (page = 1, search = "") => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (search) params.set("search", search);
+    return adminRequest<AdminEmailLogsResponse>(`/admin/email-logs?${params.toString()}`);
+};
 
 export interface AdminUser {
     uuid: string;

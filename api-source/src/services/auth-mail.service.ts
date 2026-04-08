@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
+import { db } from "../config/db.js";
 import { buildLoginAlertEmail } from "./email-templates/login-alert.template.js";
 import { buildPasswordResetEmail } from "./email-templates/password-reset.template.js";
 import { buildSignupVerificationEmail } from "./email-templates/signup-verification.template.js";
@@ -33,22 +34,49 @@ const sendMail = async (params: {
   subject: string;
   html: string;
   text: string;
+  emailType: string;
 }) => {
   if (!transporter) {
     console.warn("SMTP not configured. Skipping email send.", {
       to: params.to,
       subject: params.subject,
     });
+    await insertEmailLog(params.to, params.subject, params.emailType, "skipped", null);
     return;
   }
 
-  await transporter.sendMail({
-    from: fromAddress,
-    to: params.to,
-    subject: params.subject,
-    html: params.html,
-    text: params.text,
-  });
+  try {
+    await transporter.sendMail({
+      from: fromAddress,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+      text: params.text,
+    });
+    await insertEmailLog(params.to, params.subject, params.emailType, "sent", null);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await insertEmailLog(params.to, params.subject, params.emailType, "failed", errMsg);
+    throw err;
+  }
+};
+
+const insertEmailLog = async (
+  recipient: string,
+  subject: string,
+  emailType: string,
+  status: "sent" | "failed" | "skipped",
+  errorMsg: string | null
+): Promise<void> => {
+  try {
+    await db.execute(
+      `INSERT INTO email_logs (recipient, subject, email_type, status, error_msg)
+       VALUES (?, ?, ?, ?, ?)`,
+      [recipient, subject, emailType, status, errorMsg]
+    );
+  } catch {
+    // Non-fatal: email_logs table may not exist yet (run migration script first)
+  }
 };
 
 export const hashOtpCode = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -56,13 +84,13 @@ export const hashOtpCode = (value: string) => createHash("sha256").update(value)
 export const sendSignupVerificationEmail = async (to: string, name: string, verificationLink: string) => {
   const { subject, text, html } = buildSignupVerificationEmail({ name, verificationLink });
 
-  await sendMail({ to, subject, text, html });
+  await sendMail({ to, subject, text, html, emailType: "signup_verification" });
 };
 
 export const sendPasswordResetEmail = async (to: string, resetLink: string) => {
   const { subject, text, html } = buildPasswordResetEmail({ resetLink });
 
-  await sendMail({ to, subject, text, html });
+  await sendMail({ to, subject, text, html, emailType: "password_reset" });
 };
 
 export const sendLoginAlertEmail = async (params: {
@@ -83,7 +111,7 @@ export const sendLoginAlertEmail = async (params: {
     secureAccountLink: params.secureAccountLink ?? `${env.clientOrigin}/auth`,
   });
 
-  await sendMail({ to: params.to, subject, text, html });
+  await sendMail({ to: params.to, subject, text, html, emailType: "login_alert" });
 };
 
 
@@ -131,22 +159,29 @@ export const sendPaymentSuccessEmail = async (params: {
 
   if (!transporter) {
     console.warn("SMTP not configured. Skipping payment success email.", { to: params.to, subject });
+    await insertEmailLog(params.to, subject, "payment_success", "skipped", null);
     return;
   }
 
-  await transporter.sendMail({
-    from: fromAddress,
-    to: params.to,
-    subject,
-    html,
-    text,
-    attachments: [
-      {
-        filename: `Invoice-${params.invoiceId}.pdf`,
-
-        path: params.pdfPath,
-        contentType: 'application/pdf',
-      },
-    ],
-  });
+  try {
+    await transporter.sendMail({
+      from: fromAddress,
+      to: params.to,
+      subject,
+      html,
+      text,
+      attachments: [
+        {
+          filename: `Invoice-${params.invoiceId}.pdf`,
+          path: params.pdfPath,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+    await insertEmailLog(params.to, subject, "payment_success", "sent", null);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await insertEmailLog(params.to, subject, "payment_success", "failed", errMsg);
+    throw err;
+  }
 };

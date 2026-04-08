@@ -1222,9 +1222,12 @@ export const createCashfreeSession = async (request: Request, response: Response
         }
 
         const finalOrderId = responseData.order_id ?? orderId;
+        const customerIpCashfree = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
         const billSeedData = {
             event: "cashfree_session_created",
             cashfree_response: responseData,
+            customer_ip: customerIpCashfree || null,
+            customer_ua: (request.headers["user-agent"] as string | undefined) ?? null,
         };
 
         // Save only the original address1 string (if present) in billing_address
@@ -1497,6 +1500,12 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             );
             const userEmail = dlUserRows[0]?.email ?? "";
             const deliveryItems = purchasedSlugs.map((s) => ({ slug: s, title: s, quantity: 1 }));
+            let cfBillDataJson: Record<string, unknown> = {};
+            try {
+                cfBillDataJson = typeof billForEmail.data === "string"
+                    ? JSON.parse(billForEmail.data)
+                    : (billForEmail.data as Record<string, unknown>) ?? {};
+            } catch { /* ignore */ }
             await logDeliveryEvent({
                 userUuid: billForEmail.uid,
                 userEmail,
@@ -1504,6 +1513,8 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 orderId: billForEmail.orderid,
                 invoiceId: undefined,
                 items: deliveryItems,
+                ipAddress: (cfBillDataJson.customer_ip as string | undefined) ?? undefined,
+                userAgent: (cfBillDataJson.customer_ua as string | undefined) ?? undefined,
             });
         }
 
@@ -1605,9 +1616,12 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
 
         const razorpayOrderId = rzpData.id;
 
+        const customerIpRazorpay = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
         const seedData = {
             event: "razorpay_order_created",
             gateway: "razorpay",
+            customer_ip: customerIpRazorpay || null,
+            customer_ua: (request.headers["user-agent"] as string | undefined) ?? null,
             razorpay_order: rzpData,
             data: {
                 customer_details: {
@@ -2126,12 +2140,20 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
             );
             const webhookUserEmail = dlUserRows2[0]?.email ?? "";
             const webhookItems = parseBillCartSlugs(billForEmail.carts).map((s) => ({ slug: s, title: s, quantity: 1 }));
+            let rzpBillDataJson: Record<string, unknown> = {};
+            try {
+                rzpBillDataJson = typeof billForEmail.data === "string"
+                    ? JSON.parse(billForEmail.data)
+                    : (billForEmail.data as Record<string, unknown>) ?? {};
+            } catch { /* ignore */ }
             await logDeliveryEvent({
                 userUuid: billForEmail.uid,
                 userEmail: webhookUserEmail,
                 eventType: "payment_success",
                 orderId: billForEmail.orderid,
                 items: webhookItems,
+                ipAddress: (rzpBillDataJson.customer_ip as string | undefined) ?? undefined,
+                userAgent: (rzpBillDataJson.customer_ua as string | undefined) ?? undefined,
             });
         }
 
