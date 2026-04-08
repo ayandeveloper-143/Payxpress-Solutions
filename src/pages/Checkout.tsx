@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiBaseUrl } from "@/lib/api";
+import { apiBaseUrl, storePodAgreement } from "@/lib/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -61,6 +61,7 @@ const Checkout = () => {
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [agreedToTnc, setAgreedToTnc] = useState(false);
 
   // Device-aware login redirect/popup
   useEffect(() => {
@@ -110,6 +111,15 @@ const Checkout = () => {
   }
 
   const onSubmit = async (values: CheckoutFormValues) => {
+    if (!agreedToTnc) {
+      toast({
+        title: "Agreement Required",
+        description: "Please agree to the delivery terms before proceeding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
@@ -131,6 +141,14 @@ const Checkout = () => {
           : await handleCashfreePayment(paymentParams);
 
       if (result.success === true && result.orderId) {
+        // Record POD agreement (non-fatal)
+        if (user) {
+          storePodAgreement({
+            userUuid: user.id,
+            userEmail: user.email,
+            orderId: result.orderId,
+          }).catch((err) => console.warn("[pod] Failed to store agreement:", err));
+        }
         navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}`);
       } else {
         toast({
@@ -236,10 +254,33 @@ const Checkout = () => {
                     </div>
                   </div>
 
+                  {/* Proof of Delivery Agreement */}
+                  <div className="rounded-2xl border bg-card p-5 shadow-sm">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreedToTnc}
+                        onChange={(e) => setAgreedToTnc(e.target.checked)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-accent"
+                      />
+                      <span className="text-sm text-muted-foreground leading-relaxed">
+                        I understand that all products sold are{" "}
+                        <strong className="text-foreground">digital goods</strong>. By completing this
+                        purchase and downloading the digital assets, I acknowledge that delivery has been
+                        completed. Downloading the files constitutes acceptance of delivery and I
+                        confirm I am satisfied with the purchase.{" "}
+                        <a href="/terms-conditions" target="_blank" className="text-accent underline underline-offset-2">
+                          Terms & Conditions
+                        </a>
+                        .
+                      </span>
+                    </label>
+                  </div>
+
                   <Button
                     type="submit"
                     className="w-full bg-accent text-accent-foreground hover:bg-accent/90 py-6 text-base"
-                    disabled={isProcessing || !paymentGatewayEnabled}
+                    disabled={isProcessing || !paymentGatewayEnabled || !agreedToTnc}
                   >
                     {isProcessing ? (
                       <span className="flex items-center justify-center gap-2">

@@ -1,6 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import type { RowDataPacket } from "mysql2";
 import { db } from "../config/db.js";
+import jwt from "jsonwebtoken";
+import { z } from "zod";
+import path from "path";
+import fs from "fs";
+import archiver from "archiver";
+import { env } from "../config/env.js";
 
 const ADMIN_USERNAME = "Anshuman";
 const ADMIN_PASSWORD = "Anshuman@11";
@@ -360,3 +366,649 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
     }
 };
 
+// ============================================================
+// JWT-based Admin API (for the React admin panel at /admin)
+// ============================================================
+
+const adminLoginSchema = z.object({
+    username: z.string().trim().min(1),
+    password: z.string().min(1),
+});
+
+const updateProductSchema = z.object({
+    title: z.string().trim().min(1).max(255).optional(),
+    description: z.string().trim().min(1).optional(),
+    tag: z.string().trim().min(1).max(100).optional(),
+    price_label: z.string().trim().min(1).max(50).optional(),
+    image: z.string().trim().min(1).max(255).optional(),
+    overview: z.string().trim().optional(),
+    short_note: z.string().trim().max(255).optional(),
+    full_description: z.string().trim().optional(),
+    screenshots: z.array(z.string()).optional(),
+    features: z.array(z.string()).optional(),
+    cart_limit: z.number().int().min(1).optional(),
+    sort_order: z.number().int().optional(),
+    is_active: z.boolean().optional(),
+    product_file: z.string().max(500).optional().nullable(),
+});
+
+const createProductSchema = z.object({
+    slug: z.string().trim().min(1).max(180).regex(/^[a-z0-9-]+$/, "slug must be lowercase alphanumeric with hyphens"),
+    title: z.string().trim().min(1).max(255),
+    description: z.string().trim().min(1),
+    tag: z.string().trim().min(1).max(100),
+    price_label: z.string().trim().min(1).max(50),
+    image: z.string().trim().min(1).max(255),
+    overview: z.string().trim().default(""),
+    short_note: z.string().trim().max(255).default(""),
+    full_description: z.string().trim().default(""),
+    screenshots: z.array(z.string()).default([]),
+    features: z.array(z.string()).default([]),
+    cart_limit: z.number().int().min(1).default(1),
+    sort_order: z.number().int().default(0),
+    is_active: z.boolean().default(true),
+    product_file: z.string().max(500).optional().nullable(),
+});
+
+/**
+ * POST /api/admin/login
+ * Accepts { username, password } and returns a short-lived admin JWT.
+ */
+export const adminApiLogin = (request: Request, response: Response): void => {
+    const parsed = adminLoginSchema.safeParse(request.body);
+    if (!parsed.success) {
+        response.status(400).json({ message: "Username and password are required." });
+        return;
+    }
+
+    const { username, password } = parsed.data;
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+        response.status(401).json({ message: "Invalid credentials." });
+        return;
+    }
+
+    const token = jwt.sign(
+        { sub: ADMIN_USERNAME, role: "admin" },
+        env.adminJwtSecret,
+        { expiresIn: env.adminJwtExpiry as jwt.SignOptions["expiresIn"] }
+    );
+
+    response.json({ token });
+};
+
+/**
+ * Middleware: verify admin JWT from Authorization Bearer header.
+ */
+export const requireAdminJwt = (request: Request, response: Response, next: NextFunction): void => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+        response.status(401).json({ message: "Admin authentication required." });
+        return;
+    }
+    const token = authHeader.slice(7).trim();
+    try {
+        const decoded = jwt.verify(token, env.adminJwtSecret) as { role?: string };
+        if (decoded.role !== "admin") {
+            response.status(403).json({ message: "Access denied." });
+            return;
+        }
+        next();
+    } catch {
+        response.status(401).json({ message: "Invalid or expired admin token." });
+    }
+};
+
+// ---- Invoices ----
+
+type BillAdminRow = RowDataPacket & {
+    orderid: string;
+    uid: string;
+    status: string;
+    total: number;
+    created_at: Date | string;
+    data: unknown;
+    carts: unknown;
+    billing_address: string;
+    user_email: string;
+    user_name: string;
+};
+
+const extractInvoiceId = (data: unknown): string => {
+    try {
+        const d = typeof data === "string" ? JSON.parse(data) : data as Record<string, unknown>;
+        const orderObj = (d as any)?.data?.order;
+        const inv = orderObj?.order_tags?.INVOICE;
+        if (inv) return inv;
+        const notes = (d as any)?.payload?.payment?.entity?.notes;
+        return notes?.invoice_id ?? "";
+    } catch {
+        return "";
+    }
+};
+
+/**
+ * GET /api/admin/invoices
+ * Returns all invoices (bills) with user info.
+ */
+export const getAdminInvoices = async (_request: Request, response: Response): Promise<void> => {
+    try {
+        const [rows] = await db.query<BillAdminRow[]>(
+            `SELECT b.orderid, b.uid, b.status, b.total, b.created_at, b.data, b.billing_address,
+                    u.email AS user_email, u.name AS user_name
+             FROM bills b
+             LEFT JOIN users u ON u.uuid = b.uid
+             ORDER BY b.created_at DESC
+             LIMIT 1000`
+        );
+
+        const invoices = rows.map((row) => ({
+            orderId: row.orderid,
+            userId: row.uid,
+            userEmail: row.user_email ?? "",
+            userName: row.user_name ?? "",
+            status: row.status,
+            total: row.total,
+            date: row.created_at,
+            invoiceId: extractInvoiceId(row.data),
+            billingAddress: row.billing_address,
+        }));
+
+        response.json({ invoices });
+    } catch (err) {
+        console.error("[admin] getAdminInvoices error:", err);
+        response.status(500).json({ message: "Failed to fetch invoices." });
+    }
+};
+
+/**
+ * GET /api/admin/invoices/:invoiceId/pdf
+ * Download a single invoice PDF.
+ */
+export const downloadAdminInvoice = async (request: Request, response: Response): Promise<void> => {
+    const { invoiceId } = request.params;
+    if (!invoiceId) {
+        response.status(400).json({ message: "Invoice ID is required." });
+        return;
+    }
+
+    try {
+        // Find the bill record with this invoice id
+        const [rows] = await db.query<Array<RowDataPacket & { uid: string; data: unknown; orderid: string }>>(
+            `SELECT uid, data, orderid FROM bills WHERE status = 'success'`
+        );
+
+        let userId = "";
+        let invoiceLabel = invoiceId;
+
+        for (const row of rows) {
+            const inv = extractInvoiceId(row.data);
+            if (inv === invoiceId || row.orderid === invoiceId) {
+                userId = row.uid;
+                invoiceLabel = inv || row.orderid;
+                break;
+            }
+        }
+
+        if (!userId) {
+            response.status(404).json({ message: "Invoice not found." });
+            return;
+        }
+
+        // Prevent path traversal: sanitize both userId and invoiceLabel
+        const safeUserId = path.basename(String(userId));
+        const safeInvoiceLabel = path.basename(String(invoiceLabel)).replace(/[^a-zA-Z0-9_\-]/g, "_");
+        const billsBase = path.resolve("public/bills");
+        const pdfPath = path.resolve(billsBase, safeUserId, `${safeInvoiceLabel}.pdf`);
+
+        // Ensure the resolved path stays within the bills directory
+        if (!pdfPath.startsWith(billsBase + path.sep)) {
+            response.status(400).json({ message: "Invalid invoice path." });
+            return;
+        }
+
+        if (!fs.existsSync(pdfPath)) {
+            response.status(404).json({ message: "Invoice PDF not found on server." });
+            return;
+        }
+
+        response.setHeader("Content-Type", "application/pdf");
+        response.setHeader("Content-Disposition", `attachment; filename="${safeInvoiceLabel}.pdf"`);
+        fs.createReadStream(pdfPath).pipe(response);
+    } catch (err) {
+        console.error("[admin] downloadAdminInvoice error:", err);
+        response.status(500).json({ message: "Failed to download invoice." });
+    }
+};
+
+/**
+ * POST /api/admin/invoices/bulk-download
+ * Bulk-download invoices as a ZIP.
+ * Body: { userEmail?: string, dateFrom?: string, dateTo?: string }
+ */
+export const bulkDownloadAdminInvoices = async (request: Request, response: Response): Promise<void> => {
+    try {
+        const { userEmail, dateFrom, dateTo } = request.body as {
+            userEmail?: string;
+            dateFrom?: string;
+            dateTo?: string;
+        };
+
+        let query = `SELECT b.uid, b.data, b.orderid, b.created_at, u.email
+                     FROM bills b
+                     LEFT JOIN users u ON u.uuid = b.uid
+                     WHERE b.status = 'success'`;
+        const params: (string | number)[] = [];
+
+        if (userEmail) {
+            query += " AND u.email = ?";
+            params.push(userEmail);
+        }
+        if (dateFrom) {
+            query += " AND b.created_at >= ?";
+            params.push(dateFrom);
+        }
+        if (dateTo) {
+            query += " AND b.created_at <= ?";
+            params.push(dateTo);
+        }
+
+        query += " ORDER BY b.created_at DESC LIMIT 200";
+
+        const [rows] = await db.query<Array<RowDataPacket & { uid: string; data: unknown; orderid: string; created_at: string }>>(
+            query,
+            params
+        );
+
+        // Collect valid PDF paths first, before opening the archive
+        const billsBase = path.resolve("public/bills");
+        const pdfFiles: Array<{ filePath: string; name: string }> = [];
+        for (const row of rows) {
+            const inv = extractInvoiceId(row.data) || row.orderid;
+            const safeUid = path.basename(row.uid);
+            const safeInv = path.basename(inv).replace(/[^a-zA-Z0-9_\-]/g, "_");
+            const pdfPath = path.resolve(billsBase, safeUid, `${safeInv}.pdf`);
+            if (pdfPath.startsWith(billsBase + path.sep) && fs.existsSync(pdfPath)) {
+                pdfFiles.push({ filePath: pdfPath, name: `${safeInv}.pdf` });
+            }
+        }
+
+        if (pdfFiles.length === 0) {
+            response.status(404).json({ message: "No invoice PDFs found for the given criteria." });
+            return;
+        }
+
+        response.setHeader("Content-Type", "application/zip");
+        response.setHeader("Content-Disposition", `attachment; filename="invoices-bulk.zip"`);
+
+        const archive = archiver("zip", { zlib: { level: 5 } });
+        archive.pipe(response);
+
+        for (const { filePath, name } of pdfFiles) {
+            archive.file(filePath, { name });
+        }
+
+        await archive.finalize();
+    } catch (err) {
+        console.error("[admin] bulkDownloadAdminInvoices error:", err);
+        if (!response.headersSent) {
+            response.status(500).json({ message: "Failed to create bulk download." });
+        }
+    }
+};
+
+// ---- Delivery Logs ----
+
+/**
+ * GET /api/admin/delivery-logs
+ * Returns all delivery log entries.
+ */
+export const getAdminDeliveryLogs = async (request: Request, response: Response): Promise<void> => {
+    try {
+        const page = Math.max(1, parseInt((request.query.page as string) ?? "1", 10));
+        const limit = Math.min(200, Math.max(1, parseInt((request.query.limit as string) ?? "100", 10)));
+        const offset = (page - 1) * limit;
+
+        const [rows] = await db.query<RowDataPacket[]>(
+            `SELECT id, user_uuid, user_email, event_type, product_slug, order_id, invoice_id,
+                    ip_address, user_agent, status, items_json, created_at
+             FROM delivery_logs
+             ORDER BY created_at DESC
+             LIMIT ? OFFSET ?`,
+            [limit, offset]
+        );
+
+        const [[{ total }]] = await db.query<Array<RowDataPacket & { total: number }>>(
+            `SELECT COUNT(*) AS total FROM delivery_logs`
+        );
+
+        response.json({ logs: rows, total, page, limit });
+    } catch (err) {
+        console.error("[admin] getAdminDeliveryLogs error:", err);
+        response.status(500).json({ message: "Failed to fetch delivery logs." });
+    }
+};
+
+// ---- Users / Purchases ----
+
+/**
+ * GET /api/admin/users
+ * Returns all users with their order history summary.
+ */
+export const getAdminUsers = async (_request: Request, response: Response): Promise<void> => {
+    try {
+        const [rows] = await db.query<Array<RowDataPacket & {
+            uuid: string;
+            name: string;
+            email: string;
+            is_verified: number;
+            order_history: unknown;
+            created_at: string;
+        }>>(
+            `SELECT uuid, name, email, is_verified, order_history, created_at
+             FROM users
+             ORDER BY created_at DESC`
+        );
+
+        const users = rows.map((u) => {
+            let orderHistory: Array<{ slug: string; purchasedAt: string }> = [];
+            try {
+                const raw = typeof u.order_history === "string"
+                    ? JSON.parse(u.order_history)
+                    : u.order_history;
+                orderHistory = Array.isArray(raw) ? raw : [];
+            } catch { /* ignore */ }
+
+            return {
+                uuid: u.uuid,
+                name: u.name,
+                email: u.email,
+                isVerified: Boolean(u.is_verified),
+                orderHistory,
+                createdAt: u.created_at,
+            };
+        });
+
+        response.json({ users });
+    } catch (err) {
+        console.error("[admin] getAdminUsers error:", err);
+        response.status(500).json({ message: "Failed to fetch users." });
+    }
+};
+
+/**
+ * DELETE /api/admin/purchases/:userUuid/:slug
+ * Remove a purchased product from a user's order_history.
+ */
+export const deleteAdminPurchase = async (request: Request, response: Response): Promise<void> => {
+    const { userUuid, slug } = request.params;
+
+    if (!userUuid || !slug) {
+        response.status(400).json({ message: "userUuid and slug are required." });
+        return;
+    }
+
+    try {
+        const [rows] = await db.query<Array<RowDataPacket & { order_history: unknown }>>(
+            `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
+            [userUuid]
+        );
+
+        if (!rows.length) {
+            response.status(404).json({ message: "User not found." });
+            return;
+        }
+
+        let history: Array<{ slug: string; purchasedAt: string }> = [];
+        try {
+            const raw = typeof rows[0].order_history === "string"
+                ? JSON.parse(rows[0].order_history)
+                : rows[0].order_history;
+            history = Array.isArray(raw) ? raw : [];
+        } catch { /* ignore */ }
+
+        const updatedHistory = history.filter((item) => item.slug !== slug);
+
+        await db.execute(
+            `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
+            [JSON.stringify(updatedHistory), userUuid]
+        );
+
+        response.json({ message: "Purchase entry removed.", orderHistory: updatedHistory });
+    } catch (err) {
+        console.error("[admin] deleteAdminPurchase error:", err);
+        response.status(500).json({ message: "Failed to delete purchase." });
+    }
+};
+
+// ---- Products ----
+
+type AdminProductRow = RowDataPacket & {
+    id: number;
+    slug: string;
+    title: string;
+    description: string;
+    tag: string;
+    price_label: string;
+    image: string;
+    overview: string;
+    short_note: string;
+    full_description: string;
+    screenshots: unknown;
+    features: unknown;
+    cart_limit: number;
+    sort_order: number;
+    is_active: number;
+    product_file: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+const parseJsonArrayField = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value as string[];
+    try {
+        const parsed = JSON.parse(value as string);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+/**
+ * GET /api/admin/products
+ * Returns all products (including inactive ones).
+ */
+export const getAdminProducts = async (_request: Request, response: Response): Promise<void> => {
+    try {
+        const [rows] = await db.query<AdminProductRow[]>(
+            `SELECT id, slug, title, description, tag, price_label, image, overview, short_note,
+                    full_description, screenshots, features, cart_limit, sort_order, is_active,
+                    product_file, created_at, updated_at
+             FROM products
+             ORDER BY sort_order ASC, id ASC`
+        );
+
+        const products = rows.map((p) => ({
+            id: p.id,
+            slug: p.slug,
+            title: p.title,
+            description: p.description,
+            tag: p.tag,
+            priceLabel: p.price_label,
+            image: p.image,
+            overview: p.overview,
+            shortNote: p.short_note,
+            fullDescription: p.full_description,
+            screenshots: parseJsonArrayField(p.screenshots),
+            features: parseJsonArrayField(p.features),
+            cartLimit: p.cart_limit,
+            sortOrder: p.sort_order,
+            isActive: Boolean(p.is_active),
+            productFile: p.product_file ?? null,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at,
+        }));
+
+        response.json({ products });
+    } catch (err) {
+        console.error("[admin] getAdminProducts error:", err);
+        response.status(500).json({ message: "Failed to fetch products." });
+    }
+};
+
+/**
+ * POST /api/admin/products
+ * Create a new product.
+ */
+export const createAdminProduct = async (request: Request, response: Response): Promise<void> => {
+    const parsed = createProductSchema.safeParse(request.body);
+    if (!parsed.success) {
+        response.status(400).json({ message: "Validation failed.", errors: parsed.error.flatten().fieldErrors });
+        return;
+    }
+
+    const d = parsed.data;
+
+    try {
+        await db.execute(
+            `INSERT INTO products (slug, title, description, tag, price_label, image, overview, short_note, full_description,
+                screenshots, features, cart_limit, sort_order, is_active, product_file)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, ?, ?)`,
+            [
+                d.slug, d.title, d.description, d.tag, d.price_label, d.image,
+                d.overview, d.short_note, d.full_description,
+                JSON.stringify(d.screenshots), JSON.stringify(d.features),
+                d.cart_limit, d.sort_order, d.is_active ? 1 : 0,
+                d.product_file ?? null,
+            ]
+        );
+
+        response.status(201).json({ message: "Product created." });
+    } catch (err: any) {
+        if (err?.code === "ER_DUP_ENTRY") {
+            response.status(409).json({ message: "A product with this slug already exists." });
+            return;
+        }
+        console.error("[admin] createAdminProduct error:", err);
+        response.status(500).json({ message: "Failed to create product." });
+    }
+};
+
+/**
+ * PATCH /api/admin/products/:id
+ * Update an existing product.
+ */
+export const updateAdminProduct = async (request: Request, response: Response): Promise<void> => {
+    const productId = parseInt(String(request.params.id), 10);
+    if (!Number.isFinite(productId) || productId <= 0) {
+        response.status(400).json({ message: "Invalid product id." });
+        return;
+    }
+
+    const parsed = updateProductSchema.safeParse(request.body);
+    if (!parsed.success) {
+        response.status(400).json({ message: "Validation failed.", errors: parsed.error.flatten().fieldErrors });
+        return;
+    }
+
+    const d = parsed.data;
+    const setClauses: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (d.title !== undefined) { setClauses.push("title = ?"); params.push(d.title); }
+    if (d.description !== undefined) { setClauses.push("description = ?"); params.push(d.description); }
+    if (d.tag !== undefined) { setClauses.push("tag = ?"); params.push(d.tag); }
+    if (d.price_label !== undefined) { setClauses.push("price_label = ?"); params.push(d.price_label); }
+    if (d.image !== undefined) { setClauses.push("image = ?"); params.push(d.image); }
+    if (d.overview !== undefined) { setClauses.push("overview = ?"); params.push(d.overview); }
+    if (d.short_note !== undefined) { setClauses.push("short_note = ?"); params.push(d.short_note); }
+    if (d.full_description !== undefined) { setClauses.push("full_description = ?"); params.push(d.full_description); }
+    if (d.screenshots !== undefined) { setClauses.push("screenshots = CAST(? AS JSON)"); params.push(JSON.stringify(d.screenshots)); }
+    if (d.features !== undefined) { setClauses.push("features = CAST(? AS JSON)"); params.push(JSON.stringify(d.features)); }
+    if (d.cart_limit !== undefined) { setClauses.push("cart_limit = ?"); params.push(d.cart_limit); }
+    if (d.sort_order !== undefined) { setClauses.push("sort_order = ?"); params.push(d.sort_order); }
+    if (d.is_active !== undefined) { setClauses.push("is_active = ?"); params.push(d.is_active ? 1 : 0); }
+    if ("product_file" in d) { setClauses.push("product_file = ?"); params.push(d.product_file ?? null); }
+
+    if (setClauses.length === 0) {
+        response.status(400).json({ message: "No fields to update." });
+        return;
+    }
+
+    try {
+        await db.execute(
+            `UPDATE products SET ${setClauses.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            [...params, productId]
+        );
+        response.json({ message: "Product updated." });
+    } catch (err) {
+        console.error("[admin] updateAdminProduct error:", err);
+        response.status(500).json({ message: "Failed to update product." });
+    }
+};
+
+/**
+ * DELETE /api/admin/products/:id
+ * Soft-delete (deactivate) a product. Pass ?hard=true to fully delete.
+ */
+export const deleteAdminProduct = async (request: Request, response: Response): Promise<void> => {
+    const productId = parseInt(String(request.params.id), 10);
+    if (!Number.isFinite(productId) || productId <= 0) {
+        response.status(400).json({ message: "Invalid product id." });
+        return;
+    }
+
+    const hard = request.query.hard === "true";
+
+    try {
+        if (hard) {
+            await db.execute(`DELETE FROM products WHERE id = ?`, [productId]);
+            response.json({ message: "Product permanently deleted." });
+        } else {
+            await db.execute(
+                `UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [productId]
+            );
+            response.json({ message: "Product deactivated." });
+        }
+    } catch (err) {
+        console.error("[admin] deleteAdminProduct error:", err);
+        response.status(500).json({ message: "Failed to delete product." });
+    }
+};
+
+// ---- POD Agreements ----
+
+/**
+ * POST /api/pod/agreement
+ * Store customer T&C agreement at checkout (POD evidence).
+ */
+export const storePodAgreement = async (request: Request, response: Response): Promise<void> => {
+    const { userUuid, userEmail, orderId, agreementText } = request.body as {
+        userUuid?: string;
+        userEmail?: string;
+        orderId?: string;
+        agreementText?: string;
+    };
+
+    if (!userUuid || !userEmail) {
+        response.status(400).json({ message: "userUuid and userEmail are required." });
+        return;
+    }
+
+    const ip = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+        request.ip ?? "").replace(/^::ffff:/, "");
+    const ua = request.headers["user-agent"] ?? null;
+    const text = agreementText ?? "Customer agreed that downloading the digital asset constitutes completed delivery.";
+
+    try {
+        await db.execute(
+            `INSERT INTO pod_agreements (user_uuid, user_email, order_id, ip_address, user_agent, agreement_text)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [userUuid, userEmail, orderId ?? null, ip, ua, text]
+        );
+        response.json({ message: "Agreement recorded." });
+    } catch (err) {
+        console.error("[pod] storePodAgreement error:", err);
+        response.status(500).json({ message: "Failed to store agreement." });
+    }
+};

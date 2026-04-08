@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "../config/db.js";
 import { env } from "../config/env.js";
 import { generateInvoiceHtml, numberToWords } from "../invoice/invoice-template.js";
+import { logDeliveryEvent } from "../utils/delivery-log.js";
 
 const createCashfreeSessionSchema = z.object({
     orderId: z.string().trim().min(3).max(50).optional(),
@@ -1447,6 +1448,22 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
             }
 
             await generateInvoiceAndSendEmail(billForEmail);
+
+            // Log delivery event (non-fatal)
+            const [dlUserRows] = await db.query<Array<RowDataPacket & { email: string }>>(
+                `SELECT email FROM users WHERE uuid = ? LIMIT 1`,
+                [billForEmail.uid]
+            );
+            const userEmail = dlUserRows[0]?.email ?? "";
+            const deliveryItems = purchasedSlugs.map((s) => ({ slug: s, title: s, quantity: 1 }));
+            await logDeliveryEvent({
+                userUuid: billForEmail.uid,
+                userEmail,
+                eventType: "payment_success",
+                orderId: billForEmail.orderid,
+                invoiceId: undefined,
+                items: deliveryItems,
+            });
         }
 
         response.status(200).json({
@@ -1784,6 +1801,16 @@ export const verifyRazorpayPayment = async (request: Request, response: Response
             await generateInvoiceAndSendEmail(updatedBill);
         }
 
+        // Log delivery event (non-fatal)
+        await logDeliveryEvent({
+            request,
+            userUuid: auth.tokenPayload.sub,
+            userEmail: auth.tokenPayload.email,
+            eventType: "payment_success",
+            orderId: razorpayOrderId,
+            items: purchasedSlugs.map((s) => ({ slug: s, title: s, quantity: 1 })),
+        });
+
         response.status(200).json({ message: "Payment verified successfully.", orderId: razorpayOrderId });
     } catch (error) {
         if (connection && transactionStarted) {
@@ -2050,6 +2077,21 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
 
             // Generate invoice and send email (webhook may arrive before verify in some edge cases)
             await generateInvoiceAndSendEmail(billForEmail);
+
+            // Log delivery event (non-fatal)
+            const [dlUserRows2] = await db.query<Array<RowDataPacket & { email: string }>>(
+                `SELECT email FROM users WHERE uuid = ? LIMIT 1`,
+                [billForEmail.uid]
+            );
+            const webhookUserEmail = dlUserRows2[0]?.email ?? "";
+            const webhookItems = parseBillCartSlugs(billForEmail.carts).map((s) => ({ slug: s, title: s, quantity: 1 }));
+            await logDeliveryEvent({
+                userUuid: billForEmail.uid,
+                userEmail: webhookUserEmail,
+                eventType: "payment_success",
+                orderId: billForEmail.orderid,
+                items: webhookItems,
+            });
         }
 
         response.status(200).json({ message: "Webhook processed.", orderId, status });

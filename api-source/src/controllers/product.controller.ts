@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import path from "node:path";
 import fs from "node:fs";
+import { logDeliveryEvent } from "../utils/delivery-log.js";
 
 // Helper to verify access token and get user UUID
 const getBearerToken = (request: Request) => {
@@ -101,6 +102,22 @@ export const downloadProductFile = async (request: Request, response: Response) 
     response.setHeader("Content-Type", "application/zip");
     const stream = fs.createReadStream(resolvedPath);
     stream.pipe(response);
+
+    // Log download event (non-fatal, fire-and-forget)
+    const [dlUserRows] = await db.query<any[]>(
+        `SELECT email FROM users WHERE uuid = ? LIMIT 1`,
+        [userUuid]
+    );
+    const userEmail = dlUserRows[0]?.email ?? "";
+    const slugStr = String(slug);
+    logDeliveryEvent({
+        request,
+        userUuid,
+        userEmail,
+        eventType: "download",
+        productSlug: slugStr,
+        items: [{ slug: slugStr, title: slugStr, quantity: 1 }],
+    }).catch((err) => console.error("[delivery-log] download log failed:", err));
 };
 import type { Request, Response } from "express";
 import { db } from "../config/db.js";

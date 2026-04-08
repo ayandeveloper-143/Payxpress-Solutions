@@ -224,3 +224,54 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+-- ============================================================
+-- ADDITIVE MIGRATIONS (safe to run on live DB — no breaking changes)
+-- ============================================================
+
+-- 1. Proof-of-Delivery: delivery_logs
+--    Records every payment-success and file-download event.
+--    Used as POD evidence for the payment gateway.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `delivery_logs` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_uuid` varchar(64) NOT NULL,
+  `user_email` varchar(255) NOT NULL DEFAULT '',
+  `event_type` enum('payment_success','download') NOT NULL,
+  `product_slug` varchar(180) DEFAULT NULL,
+  `order_id` varchar(180) DEFAULT NULL,
+  `invoice_id` varchar(180) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(500) DEFAULT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'delivered',
+  `items_json` json DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_delivery_logs_user` (`user_uuid`),
+  KEY `idx_delivery_logs_order` (`order_id`),
+  KEY `idx_delivery_logs_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. Proof-of-Delivery: pod_agreements
+--    Stores the checkout T&C acknowledgment (user agrees that
+--    downloading the asset equals completed delivery).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `pod_agreements` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_uuid` varchar(64) NOT NULL,
+  `user_email` varchar(255) NOT NULL DEFAULT '',
+  `order_id` varchar(180) DEFAULT NULL,
+  `agreed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(500) DEFAULT NULL,
+  `agreement_text` text NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_pod_agreements_user` (`user_uuid`),
+  KEY `idx_pod_agreements_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. products: add product_file column (if not present)
+--    Stores the relative path to the downloadable project file.
+-- ============================================================
+ALTER TABLE `products`
+  ADD COLUMN IF NOT EXISTS `product_file` varchar(500) DEFAULT NULL AFTER `is_active`;

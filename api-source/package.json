@@ -9,6 +9,8 @@
         "start": "node dist/server.js"
     },
     "dependencies": {
+        "@types/archiver": "^7.0.0",
+        "archiver": "^7.0.1",
         "bcryptjs": "^2.4.3",
         "cashfree-pg": "^5.1.0",
         "cors": "^2.8.5",

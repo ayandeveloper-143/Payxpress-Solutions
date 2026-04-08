@@ -142,6 +142,7 @@ All routes are mounted under `/api`:
 - `GET /health`
 - `GET /products`
 - `GET /products/:slug`
+- `GET /download/:slug` — authenticated, download purchased product file
 - `POST /contact`
 - `POST /payments/cashfree/session`
 - `POST /auth/signup`
@@ -153,6 +154,28 @@ All routes are mounted under `/api`:
 - `POST /auth/forgot-password/reset`
 - `GET /cart`
 - `PUT /cart`
+- `GET /bills/history`
+- `GET /bills/:invoiceId.pdf`
+- `POST /pod/agreement` — record checkout delivery agreement (POD evidence)
+
+### Admin API (JWT protected — `/api/admin/...`)
+
+- `POST /admin/login` — obtain admin JWT
+- `GET /admin/invoices` — list all invoices
+- `GET /admin/invoices/:invoiceId/pdf` — download single invoice PDF
+- `POST /admin/invoices/bulk-download` — download ZIP of multiple invoices
+- `GET /admin/delivery-logs` — view delivery event log (POD evidence)
+- `GET /admin/users` — list all users with purchase history
+- `DELETE /admin/purchases/:userUuid/:slug` — remove a purchase entry
+- `GET /admin/products` — list all products (including inactive)
+- `POST /admin/products` — create product
+- `PATCH /admin/products/:id` — update product
+- `DELETE /admin/products/:id` — deactivate (soft-delete) product
+
+### Admin Panel (Frontend)
+
+- `/admin/login` — admin login page
+- `/admin` — admin dashboard (Invoices, Delivery Logs, Users & Purchases, Products tabs)
 
 ## Build Status
 
