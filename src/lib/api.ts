@@ -399,3 +399,218 @@ export const updateName = (payload: UpdateNamePayload) =>
         requiresAuth: true,
         body: JSON.stringify(payload),
     });
+
+// ---- Admin API ----
+
+const adminRequest = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
+    const headers = new Headers(options.headers ?? {});
+    const token = localStorage.getItem("admin_token");
+    if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = typeof data.message === "string" ? data.message : "Request failed.";
+        throw new ApiRequestError({ message, status: response.status });
+    }
+    return data as T;
+};
+
+export interface AdminLoginPayload {
+    username: string;
+    password: string;
+}
+
+export interface AdminLoginResponse {
+    token: string;
+}
+
+export const adminLogin = (payload: AdminLoginPayload) =>
+    request<AdminLoginResponse>("/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export interface AdminInvoice {
+    orderId: string;
+    userId: string;
+    userEmail: string;
+    userName: string;
+    status: string;
+    total: number;
+    date: string;
+    invoiceId: string;
+    billingAddress: string;
+}
+
+export interface AdminInvoicesResponse {
+    invoices: AdminInvoice[];
+}
+
+export const fetchAdminInvoices = () =>
+    adminRequest<AdminInvoicesResponse>("/admin/invoices");
+
+export const downloadAdminInvoicePdf = (invoiceId: string) => {
+    const token = localStorage.getItem("admin_token") ?? "";
+    const url = `${apiBaseUrl}/admin/invoices/${encodeURIComponent(invoiceId)}/pdf`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${invoiceId}.pdf`);
+    // Fetch with auth, then trigger download
+    return fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+            if (!res.ok) throw new Error("Invoice not found.");
+            return res.blob();
+        })
+        .then((blob) => {
+            const objectUrl = URL.createObjectURL(blob);
+            link.href = objectUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(objectUrl);
+        });
+};
+
+export interface AdminDeliveryLog {
+    id: number;
+    user_uuid: string;
+    user_email: string;
+    event_type: "payment_success" | "download";
+    product_slug: string | null;
+    order_id: string | null;
+    invoice_id: string | null;
+    ip_address: string | null;
+    user_agent: string | null;
+    status: string;
+    items_json: Array<{ slug: string; title: string; quantity: number }> | null;
+    created_at: string;
+}
+
+export interface AdminDeliveryLogsResponse {
+    logs: AdminDeliveryLog[];
+    total: number;
+    page: number;
+    limit: number;
+}
+
+export const fetchAdminDeliveryLogs = (page = 1) =>
+    adminRequest<AdminDeliveryLogsResponse>(`/admin/delivery-logs?page=${page}`);
+
+export interface AdminUser {
+    uuid: string;
+    name: string;
+    email: string;
+    isVerified: boolean;
+    orderHistory: Array<{ slug: string; purchasedAt: string }>;
+    createdAt: string;
+}
+
+export interface AdminUsersResponse {
+    users: AdminUser[];
+}
+
+export const fetchAdminUsers = () =>
+    adminRequest<AdminUsersResponse>("/admin/users");
+
+export const deleteAdminPurchase = (userUuid: string, slug: string) =>
+    adminRequest<{ message: string }>(`/admin/purchases/${encodeURIComponent(userUuid)}/${encodeURIComponent(slug)}`, {
+        method: "DELETE",
+    });
+
+export interface AdminProduct {
+    id: number;
+    slug: string;
+    title: string;
+    description: string;
+    tag: string;
+    priceLabel: string;
+    image: string;
+    overview: string;
+    shortNote: string;
+    fullDescription: string;
+    screenshots: string[];
+    features: string[];
+    cartLimit: number;
+    sortOrder: number;
+    isActive: boolean;
+    productFile: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminProductsResponse {
+    products: AdminProduct[];
+}
+
+export const fetchAdminProducts = () =>
+    adminRequest<AdminProductsResponse>("/admin/products");
+
+export interface CreateAdminProductPayload {
+    slug: string;
+    title: string;
+    description: string;
+    tag: string;
+    price_label: string;
+    image: string;
+    overview?: string;
+    short_note?: string;
+    full_description?: string;
+    screenshots?: string[];
+    features?: string[];
+    cart_limit?: number;
+    sort_order?: number;
+    is_active?: boolean;
+    product_file?: string | null;
+}
+
+export const createAdminProduct = (payload: CreateAdminProductPayload) =>
+    adminRequest<{ message: string }>("/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export interface UpdateAdminProductPayload {
+    title?: string;
+    description?: string;
+    tag?: string;
+    price_label?: string;
+    image?: string;
+    overview?: string;
+    short_note?: string;
+    full_description?: string;
+    screenshots?: string[];
+    features?: string[];
+    cart_limit?: number;
+    sort_order?: number;
+    is_active?: boolean;
+    product_file?: string | null;
+}
+
+export const updateAdminProduct = (id: number, payload: UpdateAdminProductPayload) =>
+    adminRequest<{ message: string }>(`/admin/products/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export const deleteAdminProduct = (id: number, hard = false) =>
+    adminRequest<{ message: string }>(`/admin/products/${id}${hard ? "?hard=true" : ""}`, {
+        method: "DELETE",
+    });
+
+export const storePodAgreement = (payload: {
+    userUuid: string;
+    userEmail: string;
+    orderId?: string;
+    agreementText?: string;
+}) =>
+    request<{ message: string }>("/pod/agreement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+

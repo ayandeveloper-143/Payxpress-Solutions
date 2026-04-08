@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { PurchasedProvider } from "@/context/PurchasedContext";
+import { AdminAuthProvider } from "@/context/AdminAuthContext";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ProductDetails from "./pages/ProductDetails.tsx";
@@ -27,6 +28,8 @@ import PaymentSuccess from "./pages/PaymentSuccess.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
 import OrdersPage from "./pages/OrdersPage.tsx";
+import AdminLogin from "./pages/AdminLogin.tsx";
+import AdminPanel from "./pages/AdminPanel.tsx";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +75,8 @@ const AppRoutes = () => {
       <Route path="/account/security" element={<AccountPage />} />
       <Route path="/account/billing" element={<AccountPage />} />
       <Route path="/orders" element={<OrdersPage />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin" element={<AdminPanel />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -87,7 +92,9 @@ const App = () => (
         <AuthProvider>
           <CartProvider>
             <PurchasedProvider>
-              <AppRoutes />
+              <AdminAuthProvider>
+                <AppRoutes />
+              </AdminAuthProvider>
             </PurchasedProvider>
           </CartProvider>
         </AuthProvider>
