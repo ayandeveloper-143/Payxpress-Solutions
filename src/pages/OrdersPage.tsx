@@ -9,8 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useRef, useState } from "react";
 import { usePurchased } from "@/context/PurchasedContext";
-import { products } from "@/data/products";
+import { fetchProducts } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { downloadProductFile } from "@/lib/download";
 import { format } from "date-fns";
 
@@ -30,6 +31,11 @@ const OrdersPage = () => {
   }, [refreshUser]);
   const { purchasedItems } = usePurchased();
   const { toast } = useToast();
+  const { data: productsData, isLoading: isProductsLoading } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  });
+  const apiProducts = productsData?.products ?? [];
 
   if (!isAuthLoading && !isLoggedIn) {
     return <Navigate to="/" replace />;
@@ -67,7 +73,7 @@ const OrdersPage = () => {
   };
 
   const orders = purchasedItems.map((purchased) => {
-    const product = products.find((p) => p.slug === purchased.slug) ?? null;
+    const product = apiProducts.find((p) => p.slug === purchased.slug) ?? null;
     return { slug: purchased.slug, product, purchasedAt: purchased.purchasedAt };
   });
 
@@ -86,7 +92,7 @@ const OrdersPage = () => {
         </ScrollReveal>
 
         {/* Orders List */}
-        {isAuthLoading ? (
+        {isAuthLoading || isProductsLoading ? (
           <div className="space-y-4" aria-label="Loading order history">
             {orderLoadingSkeletons.map((key) => (
               <div
