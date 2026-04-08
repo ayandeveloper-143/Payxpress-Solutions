@@ -74,8 +74,9 @@ const insertEmailLog = async (
        VALUES (?, ?, ?, ?, ?)`,
       [recipient, subject, emailType, status, errorMsg]
     );
-  } catch {
+  } catch (logErr) {
     // Non-fatal: email_logs table may not exist yet (run migration script first)
+    console.error("[email-log] Failed to insert email log:", logErr);
   }
 };
 

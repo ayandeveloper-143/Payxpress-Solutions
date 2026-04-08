@@ -1222,11 +1222,11 @@ export const createCashfreeSession = async (request: Request, response: Response
         }
 
         const finalOrderId = responseData.order_id ?? orderId;
-        const customerIpCashfree = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
+        const customerIp = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
         const billSeedData = {
             event: "cashfree_session_created",
             cashfree_response: responseData,
-            customer_ip: customerIpCashfree || null,
+            customer_ip: customerIp || null,
             customer_ua: (request.headers["user-agent"] as string | undefined) ?? null,
         };
 
@@ -1616,11 +1616,11 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
 
         const razorpayOrderId = rzpData.id;
 
-        const customerIpRazorpay = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
+        const customerIp = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
         const seedData = {
             event: "razorpay_order_created",
             gateway: "razorpay",
-            customer_ip: customerIpRazorpay || null,
+            customer_ip: customerIp || null,
             customer_ua: (request.headers["user-agent"] as string | undefined) ?? null,
             razorpay_order: rzpData,
             data: {
