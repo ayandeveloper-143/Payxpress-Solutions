@@ -15,7 +15,9 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import { ShieldCheck, Loader2 } from "lucide-react";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { ShieldCheck } from "lucide-react";
 
 const loginSchema = z.object({
     username: z.string().min(1, "Username is required"),
@@ -58,80 +60,87 @@ const AdminLogin = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background flex items-center justify-center px-4">
-            <div className="w-full max-w-md">
-                <div className="flex flex-col items-center mb-8 gap-3">
-                    <div className="p-3 rounded-full bg-primary/10">
-                        <ShieldCheck className="h-8 w-8 text-primary" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
-                    <p className="text-muted-foreground text-sm text-center">
-                        Access is restricted to authorised administrators only.
-                    </p>
-                </div>
+        <div className="min-h-screen overflow-x-hidden bg-background">
+            <Navbar />
 
-                <div className="bg-card border border-border rounded-xl p-8 shadow-lg">
-                    {error && (
-                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
-                            {error}
+            <main className="container-main pt-24 pb-12 min-h-[calc(100vh-64px)] flex items-center justify-center">
+                <div className="w-full max-w-md">
+                    <div className="auth-form-enter">
+                        <div className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
+                            <div className="mb-6 space-y-3 text-center">
+                                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+                                    <ShieldCheck size={18} />
+                                </div>
+                                <div className="space-y-1">
+                                    <h2 className="text-2xl font-bold tracking-tight">Admin Login</h2>
+                                    <p className="text-muted-foreground text-sm">
+                                        Access is restricted to authorised administrators only.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                                    {error}
+                                </div>
+                            )}
+
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="username"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Username</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        {...field}
+                                                        autoComplete="username"
+                                                        placeholder="Admin username"
+                                                        disabled={isLoading}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="password"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Password</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        {...field}
+                                                        type="password"
+                                                        autoComplete="current-password"
+                                                        placeholder="••••••••"
+                                                        disabled={isLoading}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <Button
+                                        type="submit"
+                                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? "Signing in…" : "Sign In"}
+                                    </Button>
+                                </form>
+                            </Form>
                         </div>
-                    )}
-
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                            <FormField
-                                control={form.control}
-                                name="username"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Username</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                {...field}
-                                                autoComplete="username"
-                                                placeholder="Admin username"
-                                                disabled={isLoading}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Password</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                {...field}
-                                                type="password"
-                                                autoComplete="current-password"
-                                                placeholder="Admin password"
-                                                disabled={isLoading}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Authenticating…
-                                    </>
-                                ) : (
-                                    "Sign In"
-                                )}
-                            </Button>
-                        </form>
-                    </Form>
+                    </div>
                 </div>
-            </div>
+            </main>
+
+            <Footer />
         </div>
     );
 };

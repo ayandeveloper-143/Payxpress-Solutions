@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "@/context/AdminAuthContext";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import ScrollReveal from "@/components/ScrollReveal";
 import {
     fetchAdminInvoices,
     fetchAdminDeliveryLogs,
@@ -27,7 +30,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
     Download,
     FileText,
-    LayoutDashboard,
     LogOut,
     Package,
     ShieldCheck,
@@ -58,6 +60,39 @@ const fmtDate = (d: string | Date) => {
 
 const fmtCurrency = (n: number) =>
     `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// ---- Shared Section Header ----
+interface SectionHeaderProps {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+}
+const SectionHeader: React.FC<SectionHeaderProps> = ({ icon, title, description }) => (
+    <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10">
+            <span className="text-accent">{icon}</span>
+        </div>
+        <div>
+            <h2 className="text-base font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+    </div>
+);
+
+// ---- Shared Table Wrapper ----
+const TableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">{children}</table>
+    </div>
+);
+
+const Th: React.FC<{ children: React.ReactNode; right?: boolean }> = ({ children, right }) => (
+    <th
+        className={`px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${right ? "text-right" : "text-left"}`}
+    >
+        {children}
+    </th>
+);
 
 // ---- Invoices Tab ----
 const InvoicesTab = () => {
@@ -94,7 +129,13 @@ const InvoicesTab = () => {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="rounded-2xl border bg-card p-6 space-y-6">
+            <SectionHeader
+                icon={<FileText size={18} />}
+                title="All Invoices"
+                description="View and download invoices for all users."
+            />
+
             <div className="flex items-center gap-3 flex-wrap">
                 <Input
                     placeholder="Search by email, invoice ID or order ID…"
@@ -102,69 +143,71 @@ const InvoicesTab = () => {
                     onChange={(e) => setSearch(e.target.value)}
                     className="max-w-sm"
                 />
-                <span className="text-sm text-muted-foreground">{filtered.length} invoice{filtered.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-muted-foreground">
+                    {filtered.length} invoice{filtered.length !== 1 ? "s" : ""}
+                </span>
             </div>
 
             {loading ? (
                 <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-12 w-full rounded-lg" />
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
                 <p className="text-muted-foreground text-sm">No invoices found.</p>
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                            <tr>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">User</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Amount</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                            {filtered.map((inv) => (
-                                <tr key={inv.orderId} className="hover:bg-muted/30 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <div className="font-mono text-xs text-foreground">{inv.invoiceId || inv.orderId}</div>
+                <TableWrapper>
+                    <thead>
+                        <tr className="border-b bg-muted/50">
+                            <Th>Invoice</Th>
+                            <Th>User</Th>
+                            <Th>Amount</Th>
+                            <Th>Date</Th>
+                            <Th>Status</Th>
+                            <Th right>Action</Th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {filtered.map((inv) => (
+                            <tr key={inv.orderId} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3">
+                                    <div className="font-mono text-xs font-medium">{inv.invoiceId || inv.orderId}</div>
+                                    {inv.invoiceId && (
                                         <div className="text-xs text-muted-foreground">{inv.orderId}</div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="text-foreground">{inv.userName || "—"}</div>
-                                        <div className="text-xs text-muted-foreground">{inv.userEmail}</div>
-                                    </td>
-                                    <td className="px-4 py-3 font-medium">{fmtCurrency(inv.total)}</td>
-                                    <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.date)}</td>
-                                    <td className="px-4 py-3">
-                                        <Badge variant={inv.status === "success" ? "default" : "secondary"}>
-                                            {inv.status}
-                                        </Badge>
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        {inv.invoiceId && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleDownload(inv.invoiceId)}
-                                                disabled={downloading === inv.invoiceId}
-                                            >
-                                                {downloading === inv.invoiceId ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Download className="h-4 w-4" />
-                                                )}
-                                            </Button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                                    )}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="font-medium text-sm">{inv.userName || "—"}</div>
+                                    <div className="text-xs text-muted-foreground">{inv.userEmail}</div>
+                                </td>
+                                <td className="px-4 py-3 font-medium">{fmtCurrency(inv.total)}</td>
+                                <td className="px-4 py-3 text-muted-foreground text-xs">{fmtDate(inv.date)}</td>
+                                <td className="px-4 py-3">
+                                    <Badge variant={inv.status === "success" ? "default" : "secondary"}>
+                                        {inv.status}
+                                    </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    {inv.invoiceId && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleDownload(inv.invoiceId)}
+                                            disabled={downloading === inv.invoiceId}
+                                        >
+                                            {downloading === inv.invoiceId ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Download className="h-3.5 w-3.5" />
+                                            )}
+                                        </Button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </TableWrapper>
             )}
         </div>
     );
@@ -197,15 +240,31 @@ const DeliveryLogsTab = () => {
     const pages = Math.max(1, Math.ceil(total / limit));
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm text-muted-foreground">{total} total log entries</p>
+        <div className="rounded-2xl border bg-card p-6 space-y-6">
+            <div className="flex items-start justify-between flex-wrap gap-3">
+                <SectionHeader
+                    icon={<Activity size={18} />}
+                    title="Delivery Logs"
+                    description="POD evidence — every payment and download event."
+                />
                 <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => p - 1)}
+                    >
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm text-muted-foreground">Page {page}/{pages}</span>
-                    <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                    <span className="text-xs text-muted-foreground">
+                        Page {page}/{pages} · {total} entries
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page >= pages}
+                        onClick={() => setPage((p) => p + 1)}
+                    >
                         <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>
@@ -213,50 +272,52 @@ const DeliveryLogsTab = () => {
 
             {loading ? (
                 <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-12 w-full rounded-lg" />
                     ))}
                 </div>
             ) : logs.length === 0 ? (
                 <p className="text-muted-foreground text-sm">No delivery logs found.</p>
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                            <tr>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Event</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">User</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Order / Product</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP Address</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Timestamp</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                <TableWrapper>
+                    <thead>
+                        <tr className="border-b bg-muted/50">
+                            <Th>Event</Th>
+                            <Th>User</Th>
+                            <Th>Order / Product</Th>
+                            <Th>IP Address</Th>
+                            <Th>Timestamp</Th>
+                            <Th>Status</Th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {logs.map((log) => (
+                            <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3">
+                                    <Badge variant={log.event_type === "payment_success" ? "default" : "secondary"}>
+                                        {log.event_type === "payment_success" ? "Payment" : "Download"}
+                                    </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                    {log.user_email || log.user_uuid}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="font-mono text-xs">{log.order_id || log.product_slug || "—"}</div>
+                                    {log.invoice_id && (
+                                        <div className="text-xs text-muted-foreground">Inv: {log.invoice_id}</div>
+                                    )}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                    {log.ip_address || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDate(log.created_at)}</td>
+                                <td className="px-4 py-3">
+                                    <span className="text-xs font-medium text-green-600 uppercase">{log.status}</span>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                            {logs.map((log) => (
-                                <tr key={log.id} className="hover:bg-muted/30 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <Badge variant={log.event_type === "payment_success" ? "default" : "secondary"}>
-                                            {log.event_type === "payment_success" ? "Payment" : "Download"}
-                                        </Badge>
-                                    </td>
-                                    <td className="px-4 py-3 text-muted-foreground text-xs">{log.user_email || log.user_uuid}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="text-xs font-mono">{log.order_id || log.product_slug || "—"}</div>
-                                        {log.invoice_id && (
-                                            <div className="text-xs text-muted-foreground">Invoice: {log.invoice_id}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{log.ip_address || "—"}</td>
-                                    <td className="px-4 py-3 text-muted-foreground text-xs">{fmtDate(log.created_at)}</td>
-                                    <td className="px-4 py-3">
-                                        <span className="text-green-500 font-medium text-xs uppercase">{log.status}</span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                        ))}
+                    </tbody>
+                </TableWrapper>
             )}
         </div>
     );
@@ -305,7 +366,13 @@ const UsersTab = () => {
     );
 
     return (
-        <div className="space-y-4">
+        <div className="rounded-2xl border bg-card p-6 space-y-6">
+            <SectionHeader
+                icon={<Users size={18} />}
+                title="Users & Purchases"
+                description="View user accounts and manage purchased product entries."
+            />
+
             <div className="flex items-center gap-3 flex-wrap">
                 <Input
                     placeholder="Search by name or email…"
@@ -313,12 +380,14 @@ const UsersTab = () => {
                     onChange={(e) => setSearch(e.target.value)}
                     className="max-w-sm"
                 />
-                <span className="text-sm text-muted-foreground">{filtered.length} user{filtered.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-muted-foreground">
+                    {filtered.length} user{filtered.length !== 1 ? "s" : ""}
+                </span>
             </div>
 
             {loading ? (
                 <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                    {Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="h-14 w-full rounded-lg" />
                     ))}
                 </div>
@@ -327,13 +396,13 @@ const UsersTab = () => {
             ) : (
                 <div className="space-y-2">
                     {filtered.map((user) => (
-                        <div key={user.uuid} className="border border-border rounded-lg overflow-hidden">
+                        <div key={user.uuid} className="rounded-xl border overflow-hidden">
                             <button
                                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
                                 onClick={() => setExpanded(expanded === user.uuid ? null : user.uuid)}
                             >
                                 <div>
-                                    <div className="font-medium text-foreground">{user.name}</div>
+                                    <div className="font-medium text-sm text-foreground">{user.name}</div>
                                     <div className="text-xs text-muted-foreground">{user.email}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -341,48 +410,52 @@ const UsersTab = () => {
                                         {user.isVerified ? "Verified" : "Unverified"}
                                     </Badge>
                                     <span className="text-xs text-muted-foreground">
-                                        {user.orderHistory.length} purchase{user.orderHistory.length !== 1 ? "s" : ""}
+                                        {user.orderHistory.length} item{user.orderHistory.length !== 1 ? "s" : ""}
                                     </span>
                                 </div>
                             </button>
 
-                            {expanded === user.uuid && user.orderHistory.length > 0 && (
-                                <div className="border-t border-border bg-muted/20 p-4">
-                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Purchased Products</p>
-                                    <div className="space-y-1">
-                                        {user.orderHistory.map((item) => (
-                                            <div
-                                                key={item.slug}
-                                                className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/30"
-                                            >
-                                                <div>
-                                                    <span className="font-mono text-sm">{item.slug}</span>
-                                                    <span className="text-xs text-muted-foreground ml-2">
-                                                        {item.purchasedAt ? fmtDate(item.purchasedAt) : ""}
-                                                    </span>
-                                                </div>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="text-destructive hover:text-destructive h-7 px-2"
-                                                    disabled={deletingKey === `${user.uuid}:${item.slug}`}
-                                                    onClick={() => handleDeletePurchase(user.uuid, item.slug)}
-                                                >
-                                                    {deletingKey === `${user.uuid}:${item.slug}` ? (
-                                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                                    ) : (
-                                                        <Trash2 className="h-3 w-3" />
-                                                    )}
-                                                </Button>
+                            {expanded === user.uuid && (
+                                <div className="border-t bg-muted/20 px-4 py-3">
+                                    {user.orderHistory.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">No purchases yet.</p>
+                                    ) : (
+                                        <>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                                                Purchased Products
+                                            </p>
+                                            <div className="space-y-1">
+                                                {user.orderHistory.map((item) => (
+                                                    <div
+                                                        key={item.slug}
+                                                        className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/30"
+                                                    >
+                                                        <div>
+                                                            <span className="font-mono text-sm">{item.slug}</span>
+                                                            {item.purchasedAt && (
+                                                                <span className="text-xs text-muted-foreground ml-2">
+                                                                    {fmtDate(item.purchasedAt)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-destructive hover:text-destructive h-7 px-2"
+                                                            disabled={deletingKey === `${user.uuid}:${item.slug}`}
+                                                            onClick={() => handleDeletePurchase(user.uuid, item.slug)}
+                                                        >
+                                                            {deletingKey === `${user.uuid}:${item.slug}` ? (
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="h-3 w-3" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {expanded === user.uuid && user.orderHistory.length === 0 && (
-                                <div className="border-t border-border bg-muted/20 px-4 py-3">
-                                    <p className="text-xs text-muted-foreground">No purchases yet.</p>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -545,7 +618,7 @@ const ProductsTab = () => {
         }
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDeactivate = async (id: number) => {
         if (!confirm("Deactivate this product? It will be hidden from the storefront.")) return;
         setDeletingId(id);
         try {
@@ -570,25 +643,29 @@ const ProductsTab = () => {
         }
     };
 
-    const field = (label: string, key: keyof ProductFormData, type: "text" | "textarea" | "number" | "checkbox" = "text") => (
-        <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase">{label}</label>
+    const field = (
+        label: string,
+        key: keyof ProductFormData,
+        type: "text" | "textarea" | "number" | "checkbox" = "text"
+    ) => (
+        <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</label>
             {type === "textarea" ? (
                 <textarea
-                    className="w-full min-h-[80px] px-3 py-2 text-sm bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full min-h-[80px] px-3 py-2 text-sm bg-background border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
                     value={String(form[key])}
                     onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                 />
             ) : type === "checkbox" ? (
-                <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                     <input
                         type="checkbox"
                         checked={Boolean(form[key])}
                         onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))}
-                        className="h-4 w-4"
+                        className="h-4 w-4 rounded border-input accent-accent"
                     />
                     <span className="text-sm text-foreground">Active (visible on storefront)</span>
-                </div>
+                </label>
             ) : (
                 <Input
                     type={type}
@@ -600,28 +677,26 @@ const ProductsTab = () => {
                         }))
                     }
                     disabled={key === "slug" && !isCreating}
+                    className={key === "slug" && !isCreating ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
                 />
             )}
         </div>
     );
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{products.length} product{products.length !== 1 ? "s" : ""}</p>
-                <Button onClick={openCreateForm} size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Product
-                </Button>
-            </div>
-
+        <>
             {/* Product Form Modal */}
             {showForm && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8">
-                    <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4">
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8 px-4">
+                    <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-2xl p-6 space-y-5">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">{isCreating ? "Create Product" : "Edit Product"}</h3>
-                            <button onClick={closeForm} className="text-muted-foreground hover:text-foreground">
+                            <h3 className="text-lg font-semibold">
+                                {isCreating ? "Create Product" : "Edit Product"}
+                            </h3>
+                            <button
+                                onClick={closeForm}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
@@ -637,7 +712,7 @@ const ProductsTab = () => {
                             {field("Product File Path", "product_file")}
                         </div>
 
-                        {field("Description (short)", "description", "textarea")}
+                        {field("Short Description", "description", "textarea")}
                         {field("Overview", "overview", "textarea")}
                         {field("Short Note", "short_note", "textarea")}
                         {field("Full Description", "full_description", "textarea")}
@@ -645,48 +720,71 @@ const ProductsTab = () => {
                         {field("Features (one per line)", "features", "textarea")}
                         {field("", "is_active", "checkbox")}
 
-                        <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex justify-end gap-2 pt-1">
                             <Button variant="outline" onClick={closeForm} disabled={saving}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleSave} disabled={saving}>
-                                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                                {isCreating ? "Create" : "Save Changes"}
+                            <Button
+                                className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                                onClick={handleSave}
+                                disabled={saving}
+                            >
+                                {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                                {isCreating ? "Create Product" : "Save Changes"}
                             </Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {loading ? (
-                <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-14 w-full rounded-lg" />
-                    ))}
+            <div className="rounded-2xl border bg-card p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <SectionHeader
+                        icon={<Package size={18} />}
+                        title="Products"
+                        description="Manage storefront products — create, edit, or deactivate."
+                    />
+                    <Button
+                        size="sm"
+                        className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                        onClick={openCreateForm}
+                    >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Product
+                    </Button>
                 </div>
-            ) : products.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No products found.</p>
-            ) : (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                            <tr>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Product</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Price</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tag</th>
-                                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Active</th>
-                                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
+
+                {loading ? (
+                    <div className="space-y-2">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                        ))}
+                    </div>
+                ) : products.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No products found.</p>
+                ) : (
+                    <TableWrapper>
+                        <thead>
+                            <tr className="border-b bg-muted/50">
+                                <Th>Product</Th>
+                                <Th>Price</Th>
+                                <Th>Tag</Th>
+                                <Th>Active</Th>
+                                <Th right>Actions</Th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                             {products.map((p) => (
-                                <tr key={p.id} className={`hover:bg-muted/30 transition-colors ${!p.isActive ? "opacity-50" : ""}`}>
+                                <tr
+                                    key={p.id}
+                                    className={`hover:bg-muted/30 transition-colors ${!p.isActive ? "opacity-50" : ""}`}
+                                >
                                     <td className="px-4 py-3">
-                                        <div className="font-medium text-foreground">{p.title}</div>
+                                        <div className="font-medium text-sm">{p.title}</div>
                                         <div className="text-xs font-mono text-muted-foreground">{p.slug}</div>
                                     </td>
-                                    <td className="px-4 py-3 font-medium">{p.priceLabel}</td>
-                                    <td className="px-4 py-3 text-muted-foreground">{p.tag}</td>
+                                    <td className="px-4 py-3 font-medium text-sm">{p.priceLabel}</td>
+                                    <td className="px-4 py-3 text-sm text-muted-foreground">{p.tag}</td>
                                     <td className="px-4 py-3">
                                         <button
                                             onClick={() => handleToggleActive(p)}
@@ -694,7 +792,7 @@ const ProductsTab = () => {
                                             title={p.isActive ? "Deactivate" : "Activate"}
                                         >
                                             {p.isActive ? (
-                                                <ToggleRight className="h-5 w-5 text-green-500" />
+                                                <ToggleRight className="h-5 w-5 text-green-600" />
                                             ) : (
                                                 <ToggleLeft className="h-5 w-5" />
                                             )}
@@ -708,20 +806,20 @@ const ProductsTab = () => {
                                                 onClick={() => openEditForm(p)}
                                                 title="Edit"
                                             >
-                                                <Pencil className="h-4 w-4" />
+                                                <Pencil className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
                                                 className="text-destructive hover:text-destructive"
-                                                onClick={() => handleDelete(p.id)}
+                                                onClick={() => handleDeactivate(p.id)}
                                                 disabled={deletingId === p.id}
                                                 title="Deactivate"
                                             >
                                                 {deletingId === p.id ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                 ) : (
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 )}
                                             </Button>
                                         </div>
@@ -729,10 +827,10 @@ const ProductsTab = () => {
                                 </tr>
                             ))}
                         </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
+                    </TableWrapper>
+                )}
+            </div>
+        </>
     );
 };
 
@@ -747,10 +845,10 @@ const AdminPanel = () => {
     }
 
     const tabs: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
-        { id: "invoices", label: "Invoices", icon: <FileText className="h-4 w-4" /> },
-        { id: "delivery-logs", label: "Delivery Logs", icon: <Activity className="h-4 w-4" /> },
-        { id: "users", label: "Users & Purchases", icon: <Users className="h-4 w-4" /> },
-        { id: "products", label: "Products", icon: <Package className="h-4 w-4" /> },
+        { id: "invoices", label: "Invoices", icon: <FileText size={15} /> },
+        { id: "delivery-logs", label: "Delivery Logs", icon: <Activity size={15} /> },
+        { id: "users", label: "Users & Purchases", icon: <Users size={15} /> },
+        { id: "products", label: "Products", icon: <Package size={15} /> },
     ];
 
     const handleLogout = () => {
@@ -759,51 +857,59 @@ const AdminPanel = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background">
-            {/* Header */}
-            <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-1.5 rounded-lg bg-primary/10">
-                            <ShieldCheck className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                            <h1 className="font-semibold text-foreground">Admin Panel</h1>
-                            <p className="text-xs text-muted-foreground">PayXpress Solutions</p>
-                        </div>
+        <div className="min-h-screen overflow-x-hidden bg-background">
+            <Navbar />
+
+            <main className="container-main pt-28 pb-16 space-y-10">
+                <ScrollReveal className="flex items-end justify-between flex-wrap gap-4">
+                    <div className="space-y-1">
+                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Admin</p>
+                        <h1 className="text-3xl sm:text-4xl font-bold leading-tight">Admin Panel</h1>
+                        <p className="text-muted-foreground text-sm">
+                            Manage invoices, delivery logs, users, and products.
+                        </p>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground">
-                        <LogOut className="h-4 w-4 mr-2" />
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleLogout}
+                        className="gap-2 active:scale-[0.97] transition-all"
+                    >
+                        <LogOut className="h-4 w-4" />
                         Logout
                     </Button>
-                </div>
-            </header>
+                </ScrollReveal>
 
-            <div className="max-w-7xl mx-auto px-4 py-6">
                 {/* Tab Navigation */}
-                <nav className="flex items-center gap-1 border-b border-border mb-6 overflow-x-auto pb-px">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                                activeTab === tab.id
-                                    ? "border-primary text-primary"
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                            {tab.icon}
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
+                <ScrollReveal>
+                    <nav className="flex gap-1 flex-wrap">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
+                                    activeTab === tab.id
+                                        ? "bg-accent text-accent-foreground"
+                                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                }`}
+                            >
+                                {tab.icon}
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
+                </ScrollReveal>
 
                 {/* Tab Content */}
-                {activeTab === "invoices" && <InvoicesTab />}
-                {activeTab === "delivery-logs" && <DeliveryLogsTab />}
-                {activeTab === "users" && <UsersTab />}
-                {activeTab === "products" && <ProductsTab />}
-            </div>
+                <ScrollReveal>
+                    {activeTab === "invoices" && <InvoicesTab />}
+                    {activeTab === "delivery-logs" && <DeliveryLogsTab />}
+                    {activeTab === "users" && <UsersTab />}
+                    {activeTab === "products" && <ProductsTab />}
+                </ScrollReveal>
+            </main>
+
+            <Footer />
         </div>
     );
 };
