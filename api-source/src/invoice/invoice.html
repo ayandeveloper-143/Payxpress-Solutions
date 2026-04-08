@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Tax Invoice Preview</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    .invoice {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 20px;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #e6f4ea;
+      /* light green bg */
+      color: #188038;
+      /* green text */
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .brand img {
+      height: 50px;
+    }
+
+    .company-info {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .meta {
+      text-align: right;
+      font-size: 13px;
+    }
+
+    .title-main {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .section {
+      margin-top: 30px;
+    }
+
+    .grid {
+      display: flex;
+      gap: 40px;
+    }
+
+    .box {
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th,
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+    }
+
+    th {
+      background: #fafafa;
+    }
+
+    .total-box {
+      margin-top: 25px;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .total {
+      width: 260px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    .grand {
+      font-weight: bold;
+      font-size: 16px;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+
+    .footer {
+      margin-top: 40px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .signature {
+      margin-top: 30px;
+      text-align: right;
+      font-size: 13px;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #444;
+    }
+
+    /* table styles – clean & aligned */
+    .order-table-section {
+      margin-top: 24px;
+    }
+
+    .order-table-section .info-title {
+      margin-bottom: 16px;
+    }
+
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+
+    .invoice-table th {
+      text-align: left;
+      padding: 14px 12px;
+      background-color: #f8fafc;
+      color: #000000;
+      font-weight: 600;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 12.5px;
+    }
+
+    .invoice-table td {
+      padding: 16px 12px;
+      border-bottom: 1px solid #edf2f7;
+      vertical-align: top;
+      color: #1e293b;
+    }
+
+    .product-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+
+    .product-desc {
+      font-size: 12px;
+      color: #444;
+      line-height: 1.45;
+      max-width: 280px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="invoice">
+
+    <div class="header">
+      <div>
+        <div class="brand">
+          <img src="https://payxpress-solutions.com/logo.png">
+        </div>
+        <div class="company-info">
+          <b>PayXpress Solutions</b><br>
+          Bareya, West Bengal 713512<br>
+          GSTIN: 19CFDPM7789E1ZV<br>
+          State: West Bengal (Code: 19)
+        </div>
+      </div>
+
+      <div class="meta ">
+        <div class="title-main">TAX INVOICE</div>
+        <div><b>Invoice No:</b> PX-20260406001</div>
+        <div><b>Period:</b> Apr-2026</div>
+        <div><b>Date:</b> 06-Apr-2026</div>
+        <div><b>Order ID:</b> order_ABC123</div>
+        <div><b>Place of Supply:</b> West Bengal</div>
+
+        <div class="status">PAID</div>
+
+      </div>
+
+    </div>
+
+    <div class="section grid">
+      <div class="box">
+        <div class="title">Bill To</div>
+        Ayan Khan<br>
+        ayanconsole@gmail.com<br>
+        9876543210<br>
+        Kolkata, West Bengal<br>
+        India
+      </div>
+
+      <div class="box">
+        <div class="title">Payment Details</div>
+        Method: UPI<br>
+        Payment ID: 5269042494<br>
+        Bank Ref: CF123XYZ<br>
+        Time: 06-Apr-2026 06:46 PM
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="title">Order Summary</div>
+      <table class="invoice-table">
+        <thead>
+          <tr>
+            <th>Product & Description</th>
+            <th>HSN/SAC</th>
+            <th>GST %</th>
+            <th>Qty</th>
+            <th>Total (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Product 1: based on actual merged_invoices.pdf page1 data -->
+          <tr>
+            <td>
+              <div class="product-title">Step into the Future with VR</div>
+              <div class="product-desc">
+                Immersive VR app UI design kit for Android Studio<br>
+                Futuristic onboarding, exploration & experience discovery screens.
+              </div>
+            </td>
+            <td>998314</td>
+            <td>18%</td>
+            <td>1</td>
+            <td>₹1,499.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="total-box">
+      <div class="total">
+
+        <div class="row">
+          <span>Price (incl. GST & fees)</span>
+          <span>₹1499.00</span>
+        </div>
+
+        <div class="row">
+          <span>GST included (18%)</span>
+          <span>₹228.66</span>
+        </div>
+
+        <div class="row">
+          <span>Gateway Fee (2%)</span>
+          <span>₹29.98</span>
+        </div>
+
+        <div class="row grand">
+          <span>Total</span>
+          <span>₹1499.00</span>
+        </div>
+
+
+      </div>
+    </div><br>
+
+
+    <div class="note">
+      <b>Amount in Words:</b> One Thousand Four Hundred Ninety Nine Rupees Only
+    </div>
+
+    <div class="footer">
+      <b>HSN/SAC:</b> 998314 (Software / Digital Services)<br><br>
+
+
+
+      <b>Note:</b><br>
+
+      This is a digital product. It will be available for download in the user dashboard upon successful payment.<br>
+      No physical delivery is involved. No physical goods will be shipped for this transaction.<br><br>
+
+      For any queries, please contact our support team.
+    </div>
+
+    <div class="note">
+
+    </div>
+
+    <div class="signature">
+      For PayXpress Solutions<br>
+      <img src="https://payxpress-solutions.com/signature.webp" alt="Signature" style="height: 80px;"><br>
+      ________________________<br>
+      Authorized Signatory
+    </div>
+
+  </div>
+</body>
+
+</html>
