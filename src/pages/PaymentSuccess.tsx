@@ -27,25 +27,30 @@ const PaymentSuccess = () => {
             return;
         }
 
-        const fetchStatus =
-            paymentGateway === "razorpay"
-                ? fetchRazorpayOrderStatus(orderId)
-                : fetchCashfreeOrderStatus(orderId);
+        const verify = async () => {
+            try {
+                const fetchStatus =
+                    paymentGateway === "razorpay"
+                        ? fetchRazorpayOrderStatus(orderId)
+                        : fetchCashfreeOrderStatus(orderId);
 
-        fetchStatus
-            .then((data) => {
+                const data = await fetchStatus;
+
                 if (data.orderStatus !== "Success") {
                     navigate("/checkout", { replace: true });
                 } else {
                     clearCart();
+                    await refreshUser?.();
                     setIsVerifying(false);
                 }
-            })
-            .catch((error) => {
+            } catch (error) {
                 console.error("Payment status verification failed:", error);
                 navigate("/checkout", { replace: true });
-            });
-    }, [searchParams, navigate, clearCart]);
+            }
+        };
+
+        verify();
+    }, [searchParams, navigate, clearCart, refreshUser]);
 
     // Handler to refresh user/order state and navigate
     const handleNavigate = async (path: string) => {

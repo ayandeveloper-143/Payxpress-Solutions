@@ -1358,6 +1358,47 @@ export const getCashfreeOrderStatus = async (request: Request, response: Respons
             orderStatus = "Failure";
         }
 
+        if (orderStatus === "Success") {
+            try {
+                const [billRows] = await db.query<BillRecord[]>(
+                    `SELECT * FROM bills WHERE orderid = ? LIMIT 1`,
+                    [orderId]
+                );
+                const bill = billRows[0];
+
+                if (bill && bill.status !== "success") {
+                    const successfulTxn = getOrderResponse.find((t) => t.payment_status === "SUCCESS");
+                    const txnId = readString(toJsonRecord(successfulTxn as unknown), "cf_payment_id") ?? null;
+
+                    await db.query(
+                        `UPDATE bills
+                         SET txnid = COALESCE(?, txnid),
+                             status = 'success',
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE orderid = ? AND status != 'success'`,
+                        [txnId, orderId]
+                    );
+
+                    const purchasedSlugs = parseBillCartSlugs(bill.carts);
+                    if (purchasedSlugs.length > 0) {
+                        const [userRows] = await db.query<UserOrderHistoryRow[]>(
+                            `SELECT order_history FROM users WHERE uuid = ? LIMIT 1`,
+                            [bill.uid]
+                        );
+                        const existingHistory = parseOrderHistory(userRows[0]?.order_history);
+                        const purchasedAt = new Date().toISOString();
+                        const nextHistory = mergeOrderHistory(existingHistory, purchasedSlugs, purchasedAt);
+                        await db.query(
+                            `UPDATE users SET order_history = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP WHERE uuid = ?`,
+                            [JSON.stringify(nextHistory), bill.uid]
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error("[getCashfreeOrderStatus] Failed to update bill/order history:", err);
+            }
+        }
+
         response.status(200).json({
             orderId,
             orderStatus,
