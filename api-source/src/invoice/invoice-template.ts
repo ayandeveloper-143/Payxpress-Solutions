@@ -1,104 +1,104 @@
 export interface InvoiceTemplateParams {
-    invoiceNo: string;
-    billPeriod: string;
-    invoiceDate: string;
-    orderId: string;
-    customerName: string;
-    customerEmail: string;
-    customerPhone: string;
-    billingAddress: string;
-    paymentMethod: string;
-    paymentDetails: string;
-    paymentId: string;
-    bankRef: string;
-    paymentTimeStr: string;
-    itemsHtml: string;
-    total: number | string;
-    gstPercent: number | string;
-    gstAmount: number | string;
-    gatewayFee: number | string;
-    amountInWords: string;
+  invoiceNo: string;
+  billPeriod: string;
+  invoiceDate: string;
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  billingAddress: string;
+  paymentMethod: string;
+  paymentDetails: string;
+  paymentId: string;
+  bankRef: string;
+  paymentTimeStr: string;
+  itemsHtml: string;
+  total: number | string;
+  gstPercent: number | string;
+  gstAmount: number | string;
+  gatewayFee: number | string;
+  amountInWords: string;
 }
 
 const ONES = [
-    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
-    "Seventeen", "Eighteen", "Nineteen",
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+  "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+  "Seventeen", "Eighteen", "Nineteen",
 ];
 const TENS_WORDS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
 
 const DEFAULT_GATEWAY_FEE_PERCENT = "2";
 
 function convertBelow1000(n: number): string {
-    if (n < 20) return ONES[n];
-    if (n < 100) {
-        const t = TENS_WORDS[Math.floor(n / 10)];
-        const o = n % 10 !== 0 ? " " + ONES[n % 10] : "";
-        return t + o;
-    }
-    const h = ONES[Math.floor(n / 100)] + " Hundred";
-    const remainder = n % 100;
-    return remainder !== 0 ? h + " " + convertBelow1000(remainder) : h;
+  if (n < 20) return ONES[n];
+  if (n < 100) {
+    const t = TENS_WORDS[Math.floor(n / 10)];
+    const o = n % 10 !== 0 ? " " + ONES[n % 10] : "";
+    return t + o;
+  }
+  const h = ONES[Math.floor(n / 100)] + " Hundred";
+  const remainder = n % 100;
+  return remainder !== 0 ? h + " " + convertBelow1000(remainder) : h;
 }
 
 export function numberToWords(amount: number): string {
-    const intPart = Math.floor(amount);
-    const decPart = Math.floor(Math.round(amount * 100) % 100);
+  const intPart = Math.floor(amount);
+  const decPart = Math.floor(Math.round(amount * 100) % 100);
 
-    if (intPart === 0 && decPart === 0) return "Zero Rupees Only";
+  if (intPart === 0 && decPart === 0) return "Zero Rupees Only";
 
-    const parts: string[] = [];
+  const parts: string[] = [];
 
-    if (intPart >= 10000000) {
-        parts.push(convertBelow1000(Math.floor(intPart / 10000000)) + " Crore");
-    }
-    if (intPart % 10000000 >= 100000) {
-        parts.push(convertBelow1000(Math.floor((intPart % 10000000) / 100000)) + " Lakh");
-    }
-    if (intPart % 100000 >= 1000) {
-        parts.push(convertBelow1000(Math.floor((intPart % 100000) / 1000)) + " Thousand");
-    }
-    if (intPart % 1000 > 0) {
-        parts.push(convertBelow1000(intPart % 1000));
-    }
+  if (intPart >= 10000000) {
+    parts.push(convertBelow1000(Math.floor(intPart / 10000000)) + " Crore");
+  }
+  if (intPart % 10000000 >= 100000) {
+    parts.push(convertBelow1000(Math.floor((intPart % 10000000) / 100000)) + " Lakh");
+  }
+  if (intPart % 100000 >= 1000) {
+    parts.push(convertBelow1000(Math.floor((intPart % 100000) / 1000)) + " Thousand");
+  }
+  if (intPart % 1000 > 0) {
+    parts.push(convertBelow1000(intPart % 1000));
+  }
 
-    let result = parts.join(" ") + " Rupees";
+  let result = parts.join(" ") + " Rupees";
 
-    if (decPart > 0) {
-        result += " and " + convertBelow1000(decPart) + " Paise";
-    }
+  if (decPart > 0) {
+    result += " and " + convertBelow1000(decPart) + " Paise";
+  }
 
-    return result + " Only";
+  return result + " Only";
 }
 
 export function generateInvoiceHtml(params: InvoiceTemplateParams): string {
-    const {
-        invoiceNo,
-        billPeriod,
-        invoiceDate,
-        orderId,
-        customerName,
-        customerEmail,
-        customerPhone,
-        billingAddress,
-        paymentMethod,
-        paymentDetails,
-        paymentId,
-        bankRef,
-        paymentTimeStr,
-        itemsHtml,
-        total,
-        gstPercent,
-        gstAmount,
-        gatewayFee,
-        amountInWords,
-    } = params;
+  const {
+    invoiceNo,
+    billPeriod,
+    invoiceDate,
+    orderId,
+    customerName,
+    customerEmail,
+    customerPhone,
+    billingAddress,
+    paymentMethod,
+    paymentDetails,
+    paymentId,
+    bankRef,
+    paymentTimeStr,
+    itemsHtml,
+    total,
+    gstPercent,
+    gstAmount,
+    gatewayFee,
+    amountInWords,
+  } = params;
 
-    const gatewayFeePercent = gatewayFee
-        ? ((Number(gatewayFee) / Number(total)) * 100).toFixed(0)
-        : DEFAULT_GATEWAY_FEE_PERCENT;
+  const gatewayFeePercent = gatewayFee
+    ? ((Number(gatewayFee) / Number(total)) * 100).toFixed(0)
+    : DEFAULT_GATEWAY_FEE_PERCENT;
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 
 <head>
@@ -324,7 +324,7 @@ export function generateInvoiceHtml(params: InvoiceTemplateParams): string {
         Method: ${paymentMethod}<br>
         ${paymentDetails ? paymentDetails + "<br>" : ""}
         Payment ID: ${paymentId}<br>
-        Bank Ref: ${bankRef}<br>
+        ${bankRef ? `Bank Ref: ${bankRef}<br>` : ""}
         Time: ${paymentTimeStr}
       </div>
     </div>
