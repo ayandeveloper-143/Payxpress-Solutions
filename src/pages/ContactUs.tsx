@@ -25,8 +25,8 @@ const ContactUs = () => (
                     </div>
 
                     <div>
-                        <p className="text-sm uppercase tracking-wider text-muted-foreground">Phone</p>
-                        <a href="tel:+918509517215" className="text-lg font-semibold text-accent hover:underline">
+                        <p className="text-sm uppercase tracking-wider text-muted-foreground">WhatsApp</p>
+                        <a href="https://wa.me/918509517215" className="text-lg font-semibold text-accent hover:underline">
                             +91 8509517215
                         </a>
                     </div>
