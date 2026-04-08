@@ -66,13 +66,10 @@ const OrdersPage = () => {
     }
   };
 
-  const orders = purchasedItems
-    .map((purchased) => {
-      const product = products.find((p) => p.slug === purchased.slug);
-      if (!product) return null;
-      return { product, purchasedAt: purchased.purchasedAt };
-    })
-    .filter((entry): entry is { product: (typeof products)[number]; purchasedAt: string } => entry !== null);
+  const orders = purchasedItems.map((purchased) => {
+    const product = products.find((p) => p.slug === purchased.slug) ?? null;
+    return { slug: purchased.slug, product, purchasedAt: purchased.purchasedAt };
+  });
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background">
@@ -123,39 +120,68 @@ const OrdersPage = () => {
           </ScrollReveal>
         ) : (
           <div className="space-y-4">
-            {orders.map(({ product, purchasedAt }, index) => (
-              <ScrollReveal key={product.slug} delay={index * 70}>
-                <Link to={`/products/${product.slug}`} className="block group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex flex-col sm:flex-row cursor-pointer">
-                  <div className="w-full h-48 sm:w-44 sm:h-auto shrink-0 overflow-hidden">
-                    <img
-                      src={product.image}
-                      alt={product.title}
-                      className="w-full h-full object-cover object-center"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
-                    <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">
-                      {product.tag}
-                    </Badge>
-                    <h3 className="font-semibold text-base sm:text-lg">{product.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{product.description}</p>
-                    <div className="flex items-center justify-between pt-1 gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {purchasedAt ? format(new Date(purchasedAt), "dd MMM yyyy, hh:mm a") : ""}
-                      </span>
-                      <Button
-                        size="sm"
-                        className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
-                        onClick={(event) => handleDownload(event, product.slug, product.title)}
-                        isLoading={downloadingSlug === product.slug}
-                        disabled={downloadingSlug !== null && downloadingSlug !== product.slug}
-                      >
-                        Download
-                      </Button>
+            {orders.map(({ slug, product, purchasedAt }, index) => (
+              <ScrollReveal key={slug} delay={index * 70}>
+                {product ? (
+                  <Link to={`/products/${product.slug}`} className="block group border rounded-xl overflow-hidden bg-card hover:border-accent/50 transition-colors flex flex-col sm:flex-row cursor-pointer">
+                    <div className="w-full h-48 sm:w-44 sm:h-auto shrink-0 overflow-hidden">
+                      <img
+                        src={product.image}
+                        alt={product.title}
+                        className="w-full h-full object-cover object-center"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
+                      <Badge className="text-xs font-medium bg-accent/10 text-accent border-accent/20">
+                        {product.tag}
+                      </Badge>
+                      <h3 className="font-semibold text-base sm:text-lg">{product.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{product.description}</p>
+                      <div className="flex items-center justify-between pt-1 gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {purchasedAt ? format(new Date(purchasedAt), "dd MMM yyyy, hh:mm a") : ""}
+                        </span>
+                        <Button
+                          size="sm"
+                          className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
+                          onClick={(event) => handleDownload(event, product.slug, product.title)}
+                          isLoading={downloadingSlug === product.slug}
+                          disabled={downloadingSlug !== null && downloadingSlug !== product.slug}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="block border rounded-xl overflow-hidden bg-card flex flex-col sm:flex-row">
+                    <div className="w-full h-48 sm:w-44 sm:h-auto shrink-0 overflow-hidden bg-muted flex items-center justify-center">
+                      <ShoppingBag size={36} className="text-muted-foreground" />
+                    </div>
+                    <div className="p-4 sm:p-5 space-y-2 flex-1 min-w-0">
+                      <Badge className="text-xs font-medium bg-muted text-muted-foreground border-muted">
+                        Product
+                      </Badge>
+                      <h3 className="font-semibold text-base sm:text-lg truncate">{slug}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">This product is no longer listed in the catalog.</p>
+                      <div className="flex items-center justify-between pt-1 gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {purchasedAt ? format(new Date(purchasedAt), "dd MMM yyyy, hh:mm a") : ""}
+                        </span>
+                        <Button
+                          size="sm"
+                          className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all shrink-0"
+                          onClick={(event) => handleDownload(event, slug, slug)}
+                          isLoading={downloadingSlug === slug}
+                          disabled={downloadingSlug !== null && downloadingSlug !== slug}
+                        >
+                          Download
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </Link>
+                )}
               </ScrollReveal>
             ))}
           </div>
