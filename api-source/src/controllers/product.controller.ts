@@ -41,17 +41,19 @@ export const downloadProductFile = async (request: Request, response: Response) 
 
     // 1. Check bills table for a successful purchase of this product by this user
     const [bills] = await db.query<any[]>(
-        `SELECT carts, status FROM bills WHERE uid = ? AND status = 'success'`,
+        `SELECT orderid, txnid, carts, data FROM bills WHERE uid = ? AND status = 'success'`,
         [userUuid]
     );
     let foundInBills = false;
+    let matchedBill: { orderid: string; txnid: string | null; data: unknown } | null = null;
     for (const bill of bills) {
         let carts = [];
         try {
             carts = typeof bill.carts === "string" ? JSON.parse(bill.carts) : bill.carts;
         } catch { }
-        if (Array.isArray(carts) && carts.some((item) => item.slug === slug)) {
+        if (Array.isArray(carts) && carts.some((item: { slug: string }) => item.slug === slug)) {
             foundInBills = true;
+            matchedBill = bill;
             break;
         }
     }
@@ -110,12 +112,42 @@ export const downloadProductFile = async (request: Request, response: Response) 
     );
     const userEmail = dlUserRows[0]?.email ?? "";
     const slugStr = String(slug);
+
+    // Extract invoice id from bill data JSON
+    const extractInvoiceIdLocal = (data: unknown): string => {
+        try {
+            const d: Record<string, unknown> = typeof data === "string"
+                ? JSON.parse(data) as Record<string, unknown>
+                : (data as Record<string, unknown>) ?? {};
+            const dataObj = d?.data as Record<string, unknown> | undefined;
+            const orderObj = dataObj?.order as Record<string, unknown> | undefined;
+            const orderTags = orderObj?.order_tags as Record<string, unknown> | undefined;
+            const inv = orderTags?.INVOICE;
+            if (typeof inv === "string" && inv) return inv;
+            const payload = d?.payload as Record<string, unknown> | undefined;
+            const payment = payload?.payment as Record<string, unknown> | undefined;
+            const entity = payment?.entity as Record<string, unknown> | undefined;
+            const notes = entity?.notes as Record<string, unknown> | undefined;
+            const invoiceId = notes?.invoice_id;
+            return typeof invoiceId === "string" ? invoiceId : "";
+        } catch {
+            return "";
+        }
+    };
+
+    const downloadOrderId = matchedBill?.orderid ?? undefined;
+    const downloadTxnId = matchedBill?.txnid ?? undefined;
+    const downloadInvoiceId = matchedBill ? (extractInvoiceIdLocal(matchedBill.data) || undefined) : undefined;
+
     logDeliveryEvent({
         request,
         userUuid,
         userEmail,
         eventType: "download",
         productSlug: slugStr,
+        orderId: downloadOrderId,
+        invoiceId: downloadInvoiceId,
+        transactionId: downloadTxnId,
         items: [{ slug: slugStr, title: slugStr, quantity: 1 }],
     }).catch((err) => console.error("[delivery-log] download log failed:", err));
 };

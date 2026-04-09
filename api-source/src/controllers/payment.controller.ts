@@ -107,6 +107,8 @@ type BillRecord = RowDataPacket & {
     uid: string;
     carts: unknown;
     billing_address: string;
+    payment_success_ip: string | null;
+    payment_success_ua: string | null;
     data: unknown;
     status: string;
     gst_type: string;
@@ -1240,12 +1242,14 @@ export const createCashfreeSession = async (request: Request, response: Response
 
 
         await db.query(
-            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
-             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, payment_success_ip, payment_success_ua, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+             VALUES (?, NULL, ?, CAST(? AS JSON), ?, ?, ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 uid = VALUES(uid),
                 carts = VALUES(carts),
                 billing_address = VALUES(billing_address),
+                payment_success_ip = VALUES(payment_success_ip),
+                payment_success_ua = VALUES(payment_success_ua),
                 data = VALUES(data),
                 gst_type = VALUES(gst_type),
                 gst_percent = VALUES(gst_percent),
@@ -1261,6 +1265,8 @@ export const createCashfreeSession = async (request: Request, response: Response
                 user.uuid,
                 JSON.stringify(payload.cart_details),
                 billingAddressRaw,
+                customerIp || null,
+                (request.headers["user-agent"] as string | undefined) ?? null,
                 JSON.stringify(billSeedData),
                 gstType,
                 gstPercent,
@@ -1643,12 +1649,14 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
         };
 
         await db.query(
-            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
-             VALUES (?, NULL, ?, CAST(? AS JSON), ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, payment_success_ip, payment_success_ua, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+             VALUES (?, NULL, ?, CAST(? AS JSON), ?, ?, ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 uid = VALUES(uid),
                 carts = VALUES(carts),
                 billing_address = VALUES(billing_address),
+                payment_success_ip = VALUES(payment_success_ip),
+                payment_success_ua = VALUES(payment_success_ua),
                 data = VALUES(data),
                 gst_type = VALUES(gst_type),
                 gst_percent = VALUES(gst_percent),
@@ -1664,6 +1672,8 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
                 user.uuid,
                 JSON.stringify(cartDetailsForBill),
                 billingAddressRaw,
+                customerIp || null,
+                (request.headers["user-agent"] as string | undefined) ?? null,
                 JSON.stringify(seedData),
                 gstType,
                 gstPercent,

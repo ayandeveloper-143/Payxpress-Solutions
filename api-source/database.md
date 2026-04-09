@@ -284,3 +284,11 @@ ALTER TABLE `products`
 ALTER TABLE `delivery_logs`
   ADD COLUMN IF NOT EXISTS `transaction_id` varchar(180) DEFAULT NULL AFTER `invoice_id`,
   ADD INDEX IF NOT EXISTS `idx_delivery_logs_txn` (`transaction_id`);
+
+-- 5. bills: add payment_success_ip and payment_success_ua columns (if not present)
+--    Stores the customer IP address and user-agent at checkout time as dedicated
+--    columns so they are always reliably available (not buried in the data JSON).
+-- ============================================================
+ALTER TABLE `bills`
+  ADD COLUMN IF NOT EXISTS `payment_success_ip` varchar(45) DEFAULT NULL AFTER `billing_address`,
+  ADD COLUMN IF NOT EXISTS `payment_success_ua` varchar(500) DEFAULT NULL AFTER `payment_success_ip`;
