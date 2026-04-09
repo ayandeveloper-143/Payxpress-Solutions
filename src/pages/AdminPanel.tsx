@@ -1053,7 +1053,7 @@ const AdminPanel = () => {
         { id: "email-logs", label: "Email Logs", icon: <Mail size={15} /> },
         { id: "users", label: "Users & Purchases", icon: <Users size={15} /> },
         { id: "products", label: "Products", icon: <Package size={15} /> },
-            { id: "make-invoice", label: "Make Invoice", icon: <FileText size={15} /> },
+        { id: "make-invoice", label: "Make Invoice", icon: <FileText size={15} /> },
     ];
 
     const handleLogout = () => {
@@ -1110,7 +1110,7 @@ const AdminPanel = () => {
                     {activeTab === "email-logs" && <EmailLogsTab />}
                     {activeTab === "users" && <UsersTab />}
                     {activeTab === "products" && <ProductsTab />}
-                        {activeTab === "make-invoice" && <AdminInvoiceMaker />}
+                    {activeTab === "make-invoice" && <AdminInvoiceMaker />}
                 </ScrollReveal>
             </main>
 

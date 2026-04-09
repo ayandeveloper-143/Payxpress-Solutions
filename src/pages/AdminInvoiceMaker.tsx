@@ -236,12 +236,12 @@ const AdminInvoiceMaker = () => {
 
         const billToName = form.customerName;
         const billToAddress = form.billingAddress;
-                const feeTitle = form.gstMode === "included" ? "Price (incl. GST & fees)" : "Subtotal";
-                const gstTitle = form.gstMode === "included" ? "GST included" : "GST extra";
-                const hasAnyFee = computed.feeRows.length > 0;
-                const paymentTime = form.paymentTime ? new Date(form.paymentTime).toLocaleString("en-IN") : "";
-                const amountInWords = numberToWords(computed.total);
-            const noteHtml = htmlEscape(form.footerNoteText).replace(/\n/g, "<br />");
+        const feeTitle = form.gstMode === "included" ? "Price (incl. GST & fees)" : "Subtotal";
+        const gstTitle = form.gstMode === "included" ? "GST included" : "GST extra";
+        const hasAnyFee = computed.feeRows.length > 0;
+        const paymentTime = form.paymentTime ? new Date(form.paymentTime).toLocaleString("en-IN") : "";
+        const amountInWords = numberToWords(computed.total);
+        const noteHtml = htmlEscape(form.footerNoteText).replace(/\n/g, "<br />");
 
         return `<!DOCTYPE html>
 <html>
@@ -369,7 +369,7 @@ const AdminInvoiceMaker = () => {
                     ________________________<br>
                     ${htmlEscape(form.signatoryName || "Authorized Signatory")}
                 </div>`
-            : `<div class="signature">
+                : `<div class="signature">
                     For PayXpress Solutions<br>
                     <img src="https://payxpress-solutions.com/signature.webp" alt="Signature" style="height: 80px; visibility: hidden;"><br>
                     ________________________<br>
@@ -481,10 +481,22 @@ const AdminInvoiceMaker = () => {
                     <Card className="p-4 space-y-3">
                         <h3 className="font-semibold">Customer Details</h3>
                         <div className="space-y-3">
-                            <Input placeholder="Customer Name" value={form.customerName} onChange={(e) => setField("customerName", e.target.value)} />
-                            <Input placeholder="Customer Email" value={form.customerEmail} onChange={(e) => setField("customerEmail", e.target.value)} />
-                            <Input placeholder="Customer Phone" value={form.customerPhone} onChange={(e) => setField("customerPhone", e.target.value)} />
-                            <Textarea placeholder="Billing Address" value={form.billingAddress} onChange={(e) => setField("billingAddress", e.target.value)} className="h-20" />
+                            <div>
+                                <Label className="text-xs">Customer Name</Label>
+                                <Input className="mt-1" placeholder="Enter customer full name" value={form.customerName} onChange={(e) => setField("customerName", e.target.value)} />
+                            </div>
+                            <div>
+                                <Label className="text-xs">Customer Email</Label>
+                                <Input className="mt-1" placeholder="Enter customer email" value={form.customerEmail} onChange={(e) => setField("customerEmail", e.target.value)} />
+                            </div>
+                            <div>
+                                <Label className="text-xs">Customer Phone</Label>
+                                <Input className="mt-1" placeholder="Enter customer phone number" value={form.customerPhone} onChange={(e) => setField("customerPhone", e.target.value)} />
+                            </div>
+                            <div>
+                                <Label className="text-xs">Billing Address</Label>
+                                <Textarea className="mt-1 h-20" placeholder="Enter complete billing address" value={form.billingAddress} onChange={(e) => setField("billingAddress", e.target.value)} />
+                            </div>
                         </div>
                     </Card>
 
@@ -499,17 +511,35 @@ const AdminInvoiceMaker = () => {
                             {form.items.map((item) => (
                                 <div key={item.id} className="rounded-lg border p-3 space-y-2">
                                     <div className="flex gap-2">
-                                        <Input placeholder="Item Name" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
+                                        <div className="flex-1">
+                                            <Label className="text-xs">Item Name</Label>
+                                            <Input className="mt-1" placeholder="Enter item name" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
+                                        </div>
                                         <Button size="icon" variant="ghost" onClick={() => removeItem(item.id)} disabled={form.items.length === 1}>
                                             <Trash2 size={14} />
                                         </Button>
                                     </div>
-                                    <Textarea placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} className="h-16" />
+                                    <div>
+                                        <Label className="text-xs">Description</Label>
+                                        <Textarea className="mt-1 h-16" placeholder="Enter item description" value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} />
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <Input placeholder="HSN/SAC" value={item.hsn} onChange={(e) => updateItem(item.id, { hsn: e.target.value })} />
-                                        <Input type="number" min="1" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
-                                        <Input type="number" min="0" step="0.01" placeholder="Unit Price" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />
-                                        <Input type="number" min="0" step="0.01" placeholder="GST %" value={item.gstPercent} onChange={(e) => updateItem(item.id, { gstPercent: Math.max(0, Number(e.target.value) || 0) })} />
+                                        <div>
+                                            <Label className="text-xs">HSN/SAC</Label>
+                                            <Input className="mt-1" placeholder="e.g. 998314" value={item.hsn} onChange={(e) => updateItem(item.id, { hsn: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs">Quantity</Label>
+                                            <Input className="mt-1" type="number" min="1" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs">Unit Price</Label>
+                                            <Input className="mt-1" type="number" min="0" step="0.01" placeholder="0.00" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs">GST %</Label>
+                                            <Input className="mt-1" type="number" min="0" step="0.01" placeholder="18" value={item.gstPercent} onChange={(e) => updateItem(item.id, { gstPercent: Math.max(0, Number(e.target.value) || 0) })} />
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -542,12 +572,21 @@ const AdminInvoiceMaker = () => {
                             )}
                             {form.gatewayFees.map((fee) => (
                                 <div key={fee.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center rounded-lg border p-2">
-                                    <Input value={fee.label} onChange={(e) => updateFee(fee.id, { label: e.target.value })} placeholder="Fee Label" />
-                                    <select className="h-9 rounded-md border bg-background px-2 text-sm" value={fee.type} onChange={(e) => updateFee(fee.id, { type: e.target.value as "fixed" | "percent" })}>
-                                        <option value="percent">%</option>
-                                        <option value="fixed">₹</option>
-                                    </select>
-                                    <Input className="w-24" type="number" min="0" step="0.01" value={fee.value} onChange={(e) => updateFee(fee.id, { value: Math.max(0, Number(e.target.value) || 0) })} />
+                                    <div>
+                                        <Label className="text-xs">Fee Label</Label>
+                                        <Input className="mt-1" value={fee.label} onChange={(e) => updateFee(fee.id, { label: e.target.value })} placeholder="Fee Label" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs">Type</Label>
+                                        <select className="mt-1 h-9 rounded-md border bg-background px-2 text-sm" value={fee.type} onChange={(e) => updateFee(fee.id, { type: e.target.value as "fixed" | "percent" })}>
+                                            <option value="percent">%</option>
+                                            <option value="fixed">₹</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs">Value</Label>
+                                        <Input className="mt-1 w-24" type="number" min="0" step="0.01" value={fee.value} onChange={(e) => updateFee(fee.id, { value: Math.max(0, Number(e.target.value) || 0) })} />
+                                    </div>
                                     <Button size="icon" variant="ghost" onClick={() => removeFee(fee.id)}>
                                         <Trash2 size={14} />
                                     </Button>
@@ -559,15 +598,30 @@ const AdminInvoiceMaker = () => {
                     <Card className="p-4 space-y-3">
                         <h3 className="font-semibold">Payment Details</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="Payment Method" value={form.paymentMethod} onChange={(e) => setField("paymentMethod", e.target.value)} />
-                            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={form.paymentStatus} onChange={(e) => setField("paymentStatus", e.target.value as "PAID" | "UNPAID") }>
-                                <option value="PAID">Paid</option>
-                                <option value="UNPAID">Unpaid</option>
-                            </select>
+                            <div>
+                                <Label className="text-xs">Payment Method</Label>
+                                <Input className="mt-1" placeholder="UPI / Card / Netbanking" value={form.paymentMethod} onChange={(e) => setField("paymentMethod", e.target.value)} />
+                            </div>
+                            <div>
+                                <Label className="text-xs">Payment Status</Label>
+                                <select className="mt-1 h-10 rounded-md border bg-background px-3 text-sm w-full" value={form.paymentStatus} onChange={(e) => setField("paymentStatus", e.target.value as "PAID" | "UNPAID")}>
+                                    <option value="PAID">Paid</option>
+                                    <option value="UNPAID">Unpaid</option>
+                                </select>
+                            </div>
                         </div>
-                        <Input placeholder="Payment Details (UPI/Bank/App etc.)" value={form.paymentDetails} onChange={(e) => setField("paymentDetails", e.target.value)} />
-                        <Input placeholder="Transaction / Payment ID" value={form.paymentId} onChange={(e) => setField("paymentId", e.target.value)} />
-                        <Input placeholder="Bank Reference" value={form.bankRef} onChange={(e) => setField("bankRef", e.target.value)} />
+                        <div>
+                            <Label className="text-xs">Payment Details</Label>
+                            <Input className="mt-1" placeholder="UPI/Bank/App etc." value={form.paymentDetails} onChange={(e) => setField("paymentDetails", e.target.value)} />
+                        </div>
+                        <div>
+                            <Label className="text-xs">Transaction / Payment ID</Label>
+                            <Input className="mt-1" placeholder="Enter payment id" value={form.paymentId} onChange={(e) => setField("paymentId", e.target.value)} />
+                        </div>
+                        <div>
+                            <Label className="text-xs">Bank Reference</Label>
+                            <Input className="mt-1" placeholder="Enter bank reference" value={form.bankRef} onChange={(e) => setField("bankRef", e.target.value)} />
+                        </div>
                         <div>
                             <Label className="text-xs">Payment Date & Time</Label>
                             <Input className="mt-1" type="datetime-local" value={form.paymentTime} onChange={(e) => setField("paymentTime", e.target.value)} />
@@ -591,7 +645,10 @@ const AdminInvoiceMaker = () => {
                             </div>
                             <Switch checked={form.showSignatory} onCheckedChange={(checked) => setField("showSignatory", checked)} />
                         </div>
-                        <Input placeholder="Signatory Name" value={form.signatoryName} onChange={(e) => setField("signatoryName", e.target.value)} />
+                        <div>
+                            <Label className="text-xs">Signatory Name</Label>
+                            <Input className="mt-1" placeholder="Authorized Signatory" value={form.signatoryName} onChange={(e) => setField("signatoryName", e.target.value)} />
+                        </div>
                     </Card>
 
                     <Card className="p-4 space-y-2">
