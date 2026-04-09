@@ -26,7 +26,12 @@ const verifyAccessToken = (token: string): { sub: string } | null => {
 
 // GET /api/download/:slug
 export const downloadProductFile = async (request: Request, response: Response) => {
-    const { slug } = request.params;
+    const rawSlug = request.params.slug;
+    const slug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug ?? "").trim();
+    if (!slug) {
+        response.status(400).json({ message: "Invalid product slug." });
+        return;
+    }
     const token = getBearerToken(request);
     if (!token) {
         response.status(401).json({ message: "Missing access token." });
@@ -39,6 +44,48 @@ export const downloadProductFile = async (request: Request, response: Response) 
     }
     const userUuid = tokenPayload.sub;
 
+    const extractPurchasedSlugsFromBill = (rawCarts: unknown): string[] => {
+        try {
+            const parsed = typeof rawCarts === "string" ? JSON.parse(rawCarts) : rawCarts;
+
+            // Legacy shape: carts is already an array of cart items.
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map((item) => {
+                        if (!item || typeof item !== "object") return "";
+                        const row = item as Record<string, unknown>;
+                        const slugValue = row.slug;
+                        const itemIdValue = row.item_id;
+                        if (typeof slugValue === "string" && slugValue.trim()) return slugValue;
+                        if (typeof itemIdValue === "string" && itemIdValue.trim()) return itemIdValue;
+                        return "";
+                    })
+                    .filter((value): value is string => typeof value === "string" && value.length > 0);
+            }
+
+            // Current shape: carts stores Cashfree cart_details with cart_items.
+            if (parsed && typeof parsed === "object") {
+                const root = parsed as Record<string, unknown>;
+                const cartItems = Array.isArray(root.cart_items) ? root.cart_items : [];
+                return cartItems
+                    .map((item) => {
+                        if (!item || typeof item !== "object") return "";
+                        const row = item as Record<string, unknown>;
+                        const itemIdValue = row.item_id;
+                        const slugValue = row.slug;
+                        if (typeof itemIdValue === "string" && itemIdValue.trim()) return itemIdValue;
+                        if (typeof slugValue === "string" && slugValue.trim()) return slugValue;
+                        return "";
+                    })
+                    .filter((value): value is string => typeof value === "string" && value.length > 0);
+            }
+        } catch {
+            return [];
+        }
+
+        return [];
+    };
+
     // 1. Check bills table for a successful purchase of this product by this user
     const [bills] = await db.query<any[]>(
         `SELECT orderid, txnid, carts, data FROM bills WHERE uid = ? AND status = 'success'`,
@@ -47,11 +94,8 @@ export const downloadProductFile = async (request: Request, response: Response) 
     let foundInBills = false;
     let matchedBill: { orderid: string; txnid: string | null; data: unknown } | null = null;
     for (const bill of bills) {
-        let carts = [];
-        try {
-            carts = typeof bill.carts === "string" ? JSON.parse(bill.carts) : bill.carts;
-        } catch { }
-        if (Array.isArray(carts) && carts.some((item: { slug: string }) => item.slug === slug)) {
+        const purchasedSlugs = extractPurchasedSlugsFromBill(bill.carts);
+        if (purchasedSlugs.includes(slug)) {
             foundInBills = true;
             matchedBill = bill;
             break;

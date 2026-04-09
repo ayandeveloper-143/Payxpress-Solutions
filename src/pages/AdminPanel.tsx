@@ -341,6 +341,7 @@ const DeliveryLogsTab = () => {
                         <tr className="border-b bg-muted/50">
                             <Th>Event</Th>
                             <Th>User</Th>
+                            <Th>Order ID</Th>
                             <Th>Invoice</Th>
                             <Th>Transaction ID</Th>
                             <Th>IP Address</Th>
@@ -359,6 +360,11 @@ const DeliveryLogsTab = () => {
                                 </td>
                                 <td className="px-4 py-3 text-xs text-muted-foreground">
                                     {log.user_email || log.user_uuid}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="font-mono text-xs font-medium">
+                                        {log.order_id || "—"}
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="font-mono text-xs font-medium">
@@ -1086,11 +1092,10 @@ const AdminPanel = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                                    activeTab === tab.id
+                                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.id
                                         ? "bg-accent text-accent-foreground"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                }`}
+                                    }`}
                             >
                                 {tab.icon}
                                 {tab.label}
