@@ -10,6 +10,7 @@ import {
     downloadAdminInvoice,
     bulkDownloadAdminInvoices,
     getAdminDeliveryLogs,
+    getAdminEmailLogs,
     getAdminUsers,
     deleteAdminPurchase,
     getAdminProducts,
@@ -35,6 +36,9 @@ adminRouter.post("/admin/invoices/bulk-download", adminRateLimiter, requireAdmin
 
 // Delivery Logs
 adminRouter.get("/admin/delivery-logs", adminRateLimiter, requireAdminJwt, getAdminDeliveryLogs);
+
+// Email Logs
+adminRouter.get("/admin/email-logs", adminRateLimiter, requireAdminJwt, getAdminEmailLogs);
 
 // Users & Purchases
 adminRouter.get("/admin/users", adminRateLimiter, requireAdminJwt, getAdminUsers);

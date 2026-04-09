@@ -660,31 +660,95 @@ export const bulkDownloadAdminInvoices = async (request: Request, response: Resp
 
 /**
  * GET /api/admin/delivery-logs
- * Returns all delivery log entries.
+ * Returns all delivery log entries with optional search/filter.
  */
 export const getAdminDeliveryLogs = async (request: Request, response: Response): Promise<void> => {
     try {
         const page = Math.max(1, parseInt((request.query.page as string) ?? "1", 10));
         const limit = Math.min(200, Math.max(1, parseInt((request.query.limit as string) ?? "100", 10)));
         const offset = (page - 1) * limit;
+        const search = ((request.query.search as string) ?? "").trim();
+        const eventFilter = ((request.query.event as string) ?? "").trim();
+
+        const conditions: string[] = [];
+        const queryParams: (string | number)[] = [];
+
+        if (search) {
+            conditions.push("(user_email LIKE ? OR order_id LIKE ? OR invoice_id LIKE ?)");
+            const like = `%${search}%`;
+            queryParams.push(like, like, like);
+        }
+        if (eventFilter === "payment_success" || eventFilter === "download") {
+            conditions.push("event_type = ?");
+            queryParams.push(eventFilter);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
         const [rows] = await db.query<RowDataPacket[]>(
             `SELECT id, user_uuid, user_email, event_type, product_slug, order_id, invoice_id,
                     ip_address, user_agent, status, items_json, created_at
              FROM delivery_logs
+             ${where}
              ORDER BY created_at DESC
              LIMIT ? OFFSET ?`,
-            [limit, offset]
+            [...queryParams, limit, offset]
         );
 
         const [[{ total }]] = await db.query<Array<RowDataPacket & { total: number }>>(
-            `SELECT COUNT(*) AS total FROM delivery_logs`
+            `SELECT COUNT(*) AS total FROM delivery_logs ${where}`,
+            queryParams
         );
 
         response.json({ logs: rows, total, page, limit });
     } catch (err) {
         console.error("[admin] getAdminDeliveryLogs error:", err);
         response.status(500).json({ message: "Failed to fetch delivery logs." });
+    }
+};
+
+// ---- Email Logs ----
+
+/**
+ * GET /api/admin/email-logs
+ * Returns all outbound email log entries.
+ */
+export const getAdminEmailLogs = async (request: Request, response: Response): Promise<void> => {
+    try {
+        const page = Math.max(1, parseInt((request.query.page as string) ?? "1", 10));
+        const limit = Math.min(200, Math.max(1, parseInt((request.query.limit as string) ?? "100", 10)));
+        const offset = (page - 1) * limit;
+        const search = ((request.query.search as string) ?? "").trim();
+
+        const conditions: string[] = [];
+        const queryParams: (string | number)[] = [];
+
+        if (search) {
+            conditions.push("(recipient LIKE ? OR subject LIKE ? OR email_type LIKE ?)");
+            const like = `%${search}%`;
+            queryParams.push(like, like, like);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const [rows] = await db.query<RowDataPacket[]>(
+            `SELECT id, recipient, subject, email_type, status, error_msg, created_at
+             FROM email_logs
+             ${where}
+             ORDER BY created_at DESC
+             LIMIT ? OFFSET ?`,
+            [...queryParams, limit, offset]
+        );
+
+        const [[{ total }]] = await db.query<Array<RowDataPacket & { total: number }>>(
+            `SELECT COUNT(*) AS total FROM email_logs ${where}`,
+            queryParams
+        );
+
+        response.json({ logs: rows, total, page, limit });
+    } catch (err) {
+        console.error("[admin] getAdminEmailLogs error:", err);
+        response.status(500).json({ message: "Failed to fetch email logs." });
     }
 };
 

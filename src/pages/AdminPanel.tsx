@@ -4,11 +4,13 @@ import { useAdminAuth } from "@/context/AdminAuthContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ScrollReveal from "@/components/ScrollReveal";
+import { createPortal } from "react-dom";
 import {
     fetchAdminInvoices,
     fetchAdminDeliveryLogs,
     fetchAdminUsers,
     fetchAdminProducts,
+    fetchAdminEmailLogs,
     downloadAdminInvoicePdf,
     deleteAdminPurchase,
     deleteAdminProduct,
@@ -17,6 +19,7 @@ import {
     ApiRequestError,
     type AdminInvoice,
     type AdminDeliveryLog,
+    type AdminEmailLog,
     type AdminUser,
     type AdminProduct,
     type CreateAdminProductPayload,
@@ -31,7 +34,9 @@ import {
     Download,
     FileText,
     LogOut,
+    Mail,
     Package,
+    Search,
     ShieldCheck,
     Users,
     Activity,
@@ -47,7 +52,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-type TabId = "invoices" | "delivery-logs" | "users" | "products";
+type TabId = "invoices" | "delivery-logs" | "email-logs" | "users" | "products";
 
 // ---- Helpers ----
 const fmtDate = (d: string | Date) => {
@@ -220,11 +225,14 @@ const DeliveryLogsTab = () => {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [search, setSearch] = useState("");
+    const [eventFilter, setEventFilter] = useState("");
+    const [pendingSearch, setPendingSearch] = useState("");
     const limit = 100;
 
-    const loadLogs = useCallback((p: number) => {
+    const loadLogs = useCallback((p: number, q: string, ev: string) => {
         setLoading(true);
-        fetchAdminDeliveryLogs(p)
+        fetchAdminDeliveryLogs(p, q, ev)
             .then((r) => {
                 setLogs(r.logs as AdminDeliveryLog[]);
                 setTotal(r.total);
@@ -234,8 +242,18 @@ const DeliveryLogsTab = () => {
     }, []);
 
     useEffect(() => {
-        loadLogs(page);
-    }, [page, loadLogs]);
+        loadLogs(page, search, eventFilter);
+    }, [page, search, eventFilter, loadLogs]);
+
+    const handleSearch = () => {
+        setSearch(pendingSearch);
+        setPage(1);
+    };
+
+    const handleEventFilter = (ev: string) => {
+        setEventFilter(ev);
+        setPage(1);
+    };
 
     const pages = Math.max(1, Math.ceil(total / limit));
 
@@ -270,6 +288,33 @@ const DeliveryLogsTab = () => {
                 </div>
             </div>
 
+            <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 max-w-sm flex-1">
+                    <Input
+                        placeholder="Search by email, order ID or invoice ID…"
+                        value={pendingSearch}
+                        onChange={(e) => setPendingSearch(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    />
+                    <Button size="sm" variant="outline" onClick={handleSearch}>
+                        <Search className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="flex gap-1">
+                    {(["", "payment_success", "download"] as const).map((ev) => (
+                        <Button
+                            key={ev}
+                            size="sm"
+                            variant={eventFilter === ev ? "default" : "outline"}
+                            onClick={() => handleEventFilter(ev)}
+                            className="text-xs"
+                        >
+                            {ev === "" ? "All" : ev === "payment_success" ? "Payment" : "Download"}
+                        </Button>
+                    ))}
+                </div>
+            </div>
+
             {loading ? (
                 <div className="space-y-2">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -284,8 +329,9 @@ const DeliveryLogsTab = () => {
                         <tr className="border-b bg-muted/50">
                             <Th>Event</Th>
                             <Th>User</Th>
-                            <Th>Order / Product</Th>
+                            <Th>Invoice / Order</Th>
                             <Th>IP Address</Th>
+                            <Th>User Agent</Th>
                             <Th>Timestamp</Th>
                             <Th>Status</Th>
                         </tr>
@@ -302,13 +348,23 @@ const DeliveryLogsTab = () => {
                                     {log.user_email || log.user_uuid}
                                 </td>
                                 <td className="px-4 py-3">
-                                    <div className="font-mono text-xs">{log.order_id || log.product_slug || "—"}</div>
                                     {log.invoice_id && (
-                                        <div className="text-xs text-muted-foreground">Inv: {log.invoice_id}</div>
+                                        <div className="font-mono text-xs font-medium">Inv: {log.invoice_id}</div>
+                                    )}
+                                    {log.order_id && (
+                                        <div className="font-mono text-xs text-muted-foreground">
+                                            Ord: {log.order_id}
+                                        </div>
+                                    )}
+                                    {!log.invoice_id && !log.order_id && (
+                                        <span className="font-mono text-xs">{log.product_slug || "—"}</span>
                                     )}
                                 </td>
                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                     {log.ip_address || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate" title={log.user_agent ?? undefined}>
+                                    {log.user_agent || "—"}
                                 </td>
                                 <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDate(log.created_at)}</td>
                                 <td className="px-4 py-3">
@@ -461,6 +517,139 @@ const UsersTab = () => {
                         </div>
                     ))}
                 </div>
+            )}
+        </div>
+    );
+};
+
+// ---- Email Logs Tab ----
+const EmailLogsTab = () => {
+    const { toast } = useToast();
+    const [logs, setLogs] = useState<AdminEmailLog[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [pendingSearch, setPendingSearch] = useState("");
+    const [search, setSearch] = useState("");
+    const limit = 100;
+
+    const loadLogs = useCallback((p: number, q: string) => {
+        setLoading(true);
+        fetchAdminEmailLogs(p, q)
+            .then((r) => {
+                setLogs(r.logs as AdminEmailLog[]);
+                setTotal(r.total);
+            })
+            .catch(() => toast({ title: "Failed to load email logs", variant: "destructive" }))
+            .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        loadLogs(page, search);
+    }, [page, search, loadLogs]);
+
+    const handleSearch = () => {
+        setSearch(pendingSearch);
+        setPage(1);
+    };
+
+    const pages = Math.max(1, Math.ceil(total / limit));
+
+    const statusColor = (status: AdminEmailLog["status"]) => {
+        if (status === "sent") return "text-green-600";
+        if (status === "failed") return "text-red-500";
+        return "text-muted-foreground";
+    };
+
+    return (
+        <div className="rounded-2xl border bg-card p-6 space-y-6">
+            <div className="flex items-start justify-between flex-wrap gap-3">
+                <SectionHeader
+                    icon={<Mail size={18} />}
+                    title="Email Logs"
+                    description="Record of all outbound emails — sent, failed, or skipped."
+                />
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => p - 1)}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                        Page {page}/{pages} · {total} entries
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page >= pages}
+                        onClick={() => setPage((p) => p + 1)}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2 max-w-sm">
+                <Input
+                    placeholder="Search by email, subject or type…"
+                    value={pendingSearch}
+                    onChange={(e) => setPendingSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                />
+                <Button size="sm" variant="outline" onClick={handleSearch}>
+                    <Search className="h-4 w-4" />
+                </Button>
+            </div>
+
+            {loading ? (
+                <div className="space-y-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                    ))}
+                </div>
+            ) : logs.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No email logs found.</p>
+            ) : (
+                <TableWrapper>
+                    <thead>
+                        <tr className="border-b bg-muted/50">
+                            <Th>Recipient</Th>
+                            <Th>Subject</Th>
+                            <Th>Type</Th>
+                            <Th>Status</Th>
+                            <Th>Timestamp</Th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {logs.map((log) => (
+                            <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-xs text-muted-foreground">{log.recipient}</td>
+                                <td className="px-4 py-3 text-xs max-w-[240px] truncate" title={log.subject}>
+                                    {log.subject}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <Badge variant="secondary" className="text-xs font-mono">
+                                        {log.email_type}
+                                    </Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className={`text-xs font-semibold uppercase ${statusColor(log.status)}`}>
+                                        {log.status}
+                                    </span>
+                                    {log.error_msg && (
+                                        <div className="text-xs text-red-400 mt-0.5 max-w-[200px] truncate" title={log.error_msg}>
+                                            {log.error_msg}
+                                        </div>
+                                    )}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDate(log.created_at)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </TableWrapper>
             )}
         </div>
     );
@@ -685,8 +874,8 @@ const ProductsTab = () => {
 
     return (
         <>
-            {/* Product Form Modal */}
-            {showForm && (
+            {/* Product Form Modal — rendered via portal to bypass ScrollReveal CSS transform context */}
+            {showForm && createPortal(
                 <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8 px-4">
                     <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-2xl p-6 space-y-5">
                         <div className="flex items-center justify-between">
@@ -734,7 +923,8 @@ const ProductsTab = () => {
                             </Button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             <div className="rounded-2xl border bg-card p-6 space-y-6">
@@ -847,6 +1037,7 @@ const AdminPanel = () => {
     const tabs: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
         { id: "invoices", label: "Invoices", icon: <FileText size={15} /> },
         { id: "delivery-logs", label: "Delivery Logs", icon: <Activity size={15} /> },
+        { id: "email-logs", label: "Email Logs", icon: <Mail size={15} /> },
         { id: "users", label: "Users & Purchases", icon: <Users size={15} /> },
         { id: "products", label: "Products", icon: <Package size={15} /> },
     ];
@@ -904,6 +1095,7 @@ const AdminPanel = () => {
                 <ScrollReveal>
                     {activeTab === "invoices" && <InvoicesTab />}
                     {activeTab === "delivery-logs" && <DeliveryLogsTab />}
+                    {activeTab === "email-logs" && <EmailLogsTab />}
                     {activeTab === "users" && <UsersTab />}
                     {activeTab === "products" && <ProductsTab />}
                 </ScrollReveal>
