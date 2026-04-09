@@ -693,7 +693,7 @@ export const getAdminDeliveryLogs = async (request: Request, response: Response)
         const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
         const [rows] = await db.query<RowDataPacket[]>(
-            `SELECT id, user_uuid, user_email, event_type, product_slug, order_id, invoice_id,
+            `SELECT id, user_uuid, user_email, event_type, order_id, invoice_id,
                     transaction_id, ip_address, user_agent, status, items_json, created_at
              FROM delivery_logs
              ${where}

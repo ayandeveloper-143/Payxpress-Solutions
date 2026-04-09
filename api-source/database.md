@@ -238,7 +238,6 @@ CREATE TABLE IF NOT EXISTS `delivery_logs` (
   `user_uuid` varchar(64) NOT NULL,
   `user_email` varchar(255) NOT NULL DEFAULT '',
   `event_type` enum('payment_success','download') NOT NULL,
-  `product_slug` varchar(180) DEFAULT NULL,
   `order_id` varchar(180) DEFAULT NULL,
   `invoice_id` varchar(180) DEFAULT NULL,
   `transaction_id` varchar(180) DEFAULT NULL,
@@ -292,3 +291,8 @@ ALTER TABLE `delivery_logs`
 ALTER TABLE `bills`
   ADD COLUMN IF NOT EXISTS `payment_success_ip` varchar(45) DEFAULT NULL AFTER `billing_address`,
   ADD COLUMN IF NOT EXISTS `payment_success_ua` varchar(500) DEFAULT NULL AFTER `payment_success_ip`;
+
+-- 6. delivery_logs: remove product_slug column (redundant — slug data is in items_json)
+-- ============================================================
+ALTER TABLE `delivery_logs`
+  DROP COLUMN IF EXISTS `product_slug`;
