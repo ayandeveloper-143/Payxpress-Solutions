@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import archiver from "archiver";
 import { env } from "../config/env.js";
+import { getClientIp } from "../utils/delivery-log.js";
 
 const ADMIN_USERNAME = "Anshuman";
 const ADMIN_PASSWORD = "Anshuman@11";
@@ -41,11 +42,6 @@ type CartItem = {
     quantity: number;
     cartLimit: number;
     changes?: boolean;
-};
-
-const getClientIp = (request: Request): string => {
-    console.log("Client IP:", request.ip);
-    return (request.ip ?? "").replace(/^::ffff:/, "");
 };
 
 const sendAuthChallenge = (response: Response): void => {
@@ -1066,8 +1062,7 @@ export const storePodAgreement = async (request: Request, response: Response): P
         return;
     }
 
-    const ip = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
-        request.ip ?? "").replace(/^::ffff:/, "");
+    const ip = getClientIp(request);
     const ua = request.headers["user-agent"] ?? null;
     const text = agreementText ?? "Customer agreed that downloading the digital asset constitutes completed delivery.";
 

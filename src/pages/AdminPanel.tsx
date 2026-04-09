@@ -343,7 +343,6 @@ const DeliveryLogsTab = () => {
                             <Th>User</Th>
                             <Th>Invoice</Th>
                             <Th>Transaction ID</Th>
-                            <Th>Items</Th>
                             <Th>IP Address</Th>
                             <Th>User Agent</Th>
                             <Th>Timestamp</Th>
@@ -368,20 +367,6 @@ const DeliveryLogsTab = () => {
                                 </td>
                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                     {log.transaction_id || "—"}
-                                </td>
-                                <td className="px-4 py-3 text-xs text-muted-foreground">
-                                    {log.items_json && log.items_json.length > 0 ? (
-                                        <ul className="space-y-0.5">
-                                            {log.items_json.map((item, i) => (
-                                                <li key={i} className="font-mono">
-                                                    {item.slug}
-                                                    {item.quantity > 1 && (
-                                                        <span className="ml-1 text-muted-foreground">×{item.quantity}</span>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : "—"}
                                 </td>
                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                     {log.ip_address || "—"}

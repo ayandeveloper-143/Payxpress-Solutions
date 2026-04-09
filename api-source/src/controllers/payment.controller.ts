@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "../config/db.js";
 import { env } from "../config/env.js";
 import { generateInvoiceHtml, numberToWords } from "../invoice/invoice-template.js";
-import { logDeliveryEvent } from "../utils/delivery-log.js";
+import { logDeliveryEvent, getClientIp } from "../utils/delivery-log.js";
 
 const createCashfreeSessionSchema = z.object({
     orderId: z.string().trim().min(3).max(50).optional(),
@@ -1224,7 +1224,7 @@ export const createCashfreeSession = async (request: Request, response: Response
         }
 
         const finalOrderId = responseData.order_id ?? orderId;
-        const customerIp = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
+        const customerIp = getClientIp(request);
         const billSeedData = {
             event: "cashfree_session_created",
             cashfree_response: responseData,
@@ -1627,7 +1627,7 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
 
         const razorpayOrderId = rzpData.id;
 
-        const customerIp = ((request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip ?? "").replace(/^::ffff:/, "");
+        const customerIp = getClientIp(request);
         const seedData = {
             event: "razorpay_order_created",
             gateway: "razorpay",

@@ -10,6 +10,7 @@ import {
     sendPasswordResetEmail,
     sendSignupVerificationEmail,
 } from "../services/auth-mail.service.js";
+import { getClientIp } from "../utils/delivery-log.js";
 
 const signupSchema = z.object({
     name: z.string().trim().min(2).max(100),
@@ -119,7 +120,7 @@ const persistAccessToken = async (params: {
             params.userUuid,
             hashAccessToken(params.token),
             getAccessTokenExpiryDate(params.token),
-            params.request.ip ?? null,
+            getClientIp(params.request) || null,
             params.request.get("user-agent") ?? null,
         ]
     );
@@ -466,7 +467,7 @@ export const login = async (request: Request, response: Response) => {
         const userAgent = request.get("user-agent") ?? "Unknown";
         const browserInfo = parseBrowserInfo(userAgent);
         const deviceInfo = parseDeviceInfo(userAgent);
-        const ipAddress = request.ip ?? "Unknown";
+        const ipAddress = getClientIp(request) || "Unknown";
         const loginDateTime = new Date().toUTCString();
 
         await sendLoginAlertEmail({
