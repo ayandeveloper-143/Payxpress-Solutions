@@ -228,34 +228,41 @@ const ProductDetails = () => {
                         </p>
 
                         <div className="flex flex-wrap gap-3 pt-3">
-                            {purchased && (
-                                <Button
-                                    type="button"
-                                    className="bg-accent text-accent-foreground hover:bg-accent/90"
-                                    onClick={handleDownload}
-                                    isLoading={isDownloading}
-                                    disabled={isDownloading}
-                                >
-                                    Download
-                                </Button>
+                            {product.cartLimit === 0 && (
+                                <Badge className="bg-red-100 text-red-700 border-red-300 px-3 py-2 text-base">Out of Stock</Badge>
                             )}
-                            {effectiveCartLimit > 0 && (
+                            {product.cartLimit > 0 && (
                                 <>
-                                    <Button
-                                        type="button"
-                                        className="bg-accent text-accent-foreground hover:bg-accent/90"
-                                        onClick={handleBuyNow}
-                                    >
-                                        Buy Now
-                                    </Button>
-                                    <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= effectiveCartLimit}>
-                                        Add to Cart
-                                        {currentProductQuantity > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                                                {currentProductQuantity}
-                                            </span>
-                                        )}
-                                    </Button>
+                                    {purchased && (
+                                        <Button
+                                            type="button"
+                                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                            onClick={handleDownload}
+                                            isLoading={isDownloading}
+                                            disabled={isDownloading}
+                                        >
+                                            Download
+                                        </Button>
+                                    )}
+                                    {effectiveCartLimit > 0 && (
+                                        <>
+                                            <Button
+                                                type="button"
+                                                className="bg-accent text-accent-foreground hover:bg-accent/90"
+                                                onClick={handleBuyNow}
+                                            >
+                                                Buy Now
+                                            </Button>
+                                            <Button type="button" variant="outline" onClick={handleAddToCart} className="relative" disabled={currentProductQuantity >= effectiveCartLimit}>
+                                                Add to Cart
+                                                {currentProductQuantity > 0 && (
+                                                    <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                                                        {currentProductQuantity}
+                                                    </span>
+                                                )}
+                                            </Button>
+                                        </>
+                                    )}
                                 </>
                             )}
                             <Button asChild variant="outline">

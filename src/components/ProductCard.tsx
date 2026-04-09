@@ -123,39 +123,45 @@ const ProductCard = ({ slug, title, description, tag, price, image, cartLimit }:
         <div className="flex items-center justify-between pt-2 gap-2">
           <span className="font-bold text-foreground">{price === "₹0" ? "Custom" : price}</span>
           <div className="flex gap-2">
-            {purchased && (
-              <Button
-                size="sm"
-                className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
-                onClick={handleDownload}
-                isLoading={isDownloading}
-                disabled={isDownloading}
-              >
-                Download
-              </Button>
-            )}
-            {effectiveCartLimit > 0 && (
+            {cartLimit === 0 ? (
+              <Badge className="bg-red-100 text-red-700 border-red-300">Out of Stock</Badge>
+            ) : (
               <>
-                <div onClick={(event) => event.stopPropagation()}>
+                {purchased && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
-                    onClick={handleAddToCart}
-                    disabled={isCartLimitReached}
+                    className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all"
+                    onClick={handleDownload}
+                    isLoading={isDownloading}
+                    disabled={isDownloading}
                   >
-                    <ShoppingCart size={16} />
-                    {cartQuantity > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
-                        {cartQuantity}
-                      </span>
+                    Download
+                  </Button>
+                )}
+                {effectiveCartLimit > 0 && (
+                  <>
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="relative text-accent border-accent/50 hover:bg-accent/10 disabled:pointer-events-none"
+                        onClick={handleAddToCart}
+                        disabled={isCartLimitReached}
+                      >
+                        <ShoppingCart size={16} />
+                        {cartQuantity > 0 && (
+                          <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+                            {cartQuantity}
+                          </span>
+                        )}
+                      </Button>
+                    </div>
+                    {!purchased && (
+                      <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
+                        <Link to={`/products/${slug}`}>Details</Link>
+                      </Button>
                     )}
-                  </Button>
-                </div>
-                {!purchased && (
-                  <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-all">
-                    <Link to={`/products/${slug}`}>Details</Link>
-                  </Button>
+                  </>
                 )}
               </>
             )}
