@@ -52,9 +52,8 @@ const PaymentSuccess = () => {
         verify();
     }, [searchParams, navigate, clearCart, refreshUser]);
 
-    // Handler to refresh user/order state and navigate
-    const handleNavigate = async (path: string) => {
-        await refreshUser?.();
+    // Handler to navigate after successful payment verification
+    const handleNavigate = (path: string) => {
         navigate(path);
     };
 
