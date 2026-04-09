@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import AdminInvoiceMaker from "@/pages/AdminInvoiceMaker";
 import {
     Download,
     FileText,
@@ -50,7 +51,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-type TabId = "invoices" | "delivery-logs" | "email-logs" | "users" | "products";
+type TabId = "invoices" | "delivery-logs" | "email-logs" | "users" | "products" | "make-invoice";
 
 // ---- Helpers ----
 const fmtDate = (d: string | Date) => {
@@ -1052,6 +1053,7 @@ const AdminPanel = () => {
         { id: "email-logs", label: "Email Logs", icon: <Mail size={15} /> },
         { id: "users", label: "Users & Purchases", icon: <Users size={15} /> },
         { id: "products", label: "Products", icon: <Package size={15} /> },
+            { id: "make-invoice", label: "Make Invoice", icon: <FileText size={15} /> },
     ];
 
     const handleLogout = () => {
@@ -1108,6 +1110,7 @@ const AdminPanel = () => {
                     {activeTab === "email-logs" && <EmailLogsTab />}
                     {activeTab === "users" && <UsersTab />}
                     {activeTab === "products" && <ProductsTab />}
+                        {activeTab === "make-invoice" && <AdminInvoiceMaker />}
                 </ScrollReveal>
             </main>
 

@@ -401,6 +401,22 @@ const readString = (obj: JsonRecord | null, key: string) => {
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 };
 
+const readStringLike = (obj: JsonRecord | null, key: string) => {
+    if (!obj) {
+        return null;
+    }
+
+    const value = obj[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+    }
+
+    return null;
+};
+
 const normalizeBillStatus = (value: string | null): "pending" | "success" | "failed" | "unknown" => {
     if (!value) {
         return "unknown";
@@ -439,13 +455,13 @@ const extractWebhookBillUpdate = (payload: unknown) => {
 
     const txnId =
         readString(root, "txnid") ||
-        readString(root, "cf_payment_id") ||
-        readString(rootPayment, "cf_payment_id") ||
-        readString(dataPayment, "cf_payment_id") ||
-        readString(rootPayment, "payment_id") ||
-        readString(dataPayment, "payment_id") ||
-        readString(rootPayment, "paymentId") ||
-        readString(dataPayment, "paymentId");
+        readStringLike(root, "cf_payment_id") ||
+        readStringLike(rootPayment, "cf_payment_id") ||
+        readStringLike(dataPayment, "cf_payment_id") ||
+        readStringLike(rootPayment, "payment_id") ||
+        readStringLike(dataPayment, "payment_id") ||
+        readStringLike(rootPayment, "paymentId") ||
+        readStringLike(dataPayment, "paymentId");
 
     const statusRaw =
         readString(rootPayment, "payment_status") ||
@@ -1228,6 +1244,16 @@ export const createCashfreeSession = async (request: Request, response: Response
         const billSeedData = {
             event: "cashfree_session_created",
             cashfree_response: responseData,
+            data: {
+                order: {
+                    order_id: finalOrderId,
+                    order_tags: {
+                        INVOICE: invoiceId,
+                    },
+                    order_amount: total,
+                    order_currency: "INR",
+                },
+            },
             customer_ip: customerIp || null,
             customer_ua: (request.headers["user-agent"] as string | undefined) ?? null,
         };
@@ -1377,7 +1403,12 @@ export const getCashfreeOrderStatus = async (request: Request, response: Respons
 
                 if (bill && bill.status !== "success") {
                     const successfulTxn = getOrderResponse.find((t) => t.payment_status === "SUCCESS");
-                    const txnId = readString(toJsonRecord(successfulTxn as unknown), "cf_payment_id") ?? null;
+                    const successfulTxnObj = toJsonRecord(successfulTxn as unknown);
+                    const txnId =
+                        readStringLike(successfulTxnObj, "cf_payment_id") ||
+                        readStringLike(successfulTxnObj, "payment_id") ||
+                        readStringLike(successfulTxnObj, "paymentId") ||
+                        null;
 
                     await db.query(
                         `UPDATE bills
@@ -1441,7 +1472,17 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
         const existingBill = existingBillRows[0];
         const wasAlreadySuccess = existingBill && existingBill.status === "success";
         if (wasAlreadySuccess) {
-            response.status(409).json({ message: "Duplicate webhook: bill already marked as success." });
+            await connection.query(
+                `UPDATE bills
+                 SET txnid = COALESCE(?, txnid),
+                     data = CAST(? AS JSON),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE orderid = ?
+                 LIMIT 1`,
+                [txnId, JSON.stringify(request.body ?? {}), orderId]
+            );
+
+            response.status(200).json({ message: "Duplicate webhook: bill already marked as success." });
             return;
         }
 

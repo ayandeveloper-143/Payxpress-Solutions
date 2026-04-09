@@ -10,6 +10,7 @@ import paymentRouter from "./routes/payment.routes.js";
 import productRouter from "./routes/product.routes.js";
 import billsRouter from "./routes/bills.routes.js";
 import adminRouter from "./routes/admin.routes.js";
+import adminInvoiceMakerRouter from "./routes/admin-invoice-maker.routes.js";
 import { razorpayWebhook } from "./controllers/payment.controller.js";
 
 
@@ -58,6 +59,7 @@ app.use("/api", authRouter);
 app.use("/api", cartRouter);
 app.use("/api", billsRouter);
 app.use("/api", adminRouter);
+app.use("/api", adminInvoiceMakerRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
