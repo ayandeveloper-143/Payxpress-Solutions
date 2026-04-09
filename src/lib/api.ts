@@ -482,7 +482,6 @@ export interface AdminDeliveryLog {
     user_uuid: string;
     user_email: string;
     event_type: "payment_success" | "download";
-    product_slug: string | null;
     order_id: string | null;
     invoice_id: string | null;
     transaction_id: string | null;

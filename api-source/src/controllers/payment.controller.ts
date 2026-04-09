@@ -1512,16 +1512,20 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                     ? JSON.parse(billForEmail.data)
                     : (billForEmail.data as Record<string, unknown>) ?? {};
             } catch { /* ignore */ }
+            const cfDataInner = toJsonRecord(cfBillDataJson?.data as unknown);
+            const cfOrderObj = toJsonRecord((cfDataInner?.order as unknown));
+            const cfOrderTags = toJsonRecord((cfOrderObj?.order_tags as unknown));
+            const cfInvoiceId = readString(cfOrderTags, "INVOICE") || undefined;
             await logDeliveryEvent({
                 userUuid: billForEmail.uid,
                 userEmail,
                 eventType: "payment_success",
                 orderId: billForEmail.orderid,
-                invoiceId: undefined,
+                invoiceId: cfInvoiceId,
                 transactionId: billForEmail.txnid ?? undefined,
                 items: deliveryItems,
-                ipAddress: (cfBillDataJson.customer_ip as string | undefined) ?? undefined,
-                userAgent: (cfBillDataJson.customer_ua as string | undefined) ?? undefined,
+                ipAddress: billForEmail.payment_success_ip ?? undefined,
+                userAgent: billForEmail.payment_success_ua ?? undefined,
             });
         }
 
@@ -1868,12 +1872,17 @@ export const verifyRazorpayPayment = async (request: Request, response: Response
         }
 
         // Log delivery event (non-fatal)
+        const verifyOrderTags = toJsonRecord(
+            toJsonRecord(toJsonRecord(updatedData.data)?.order as unknown)?.order_tags as unknown
+        );
+        const verifyInvoiceId = readString(verifyOrderTags, "INVOICE") || undefined;
         await logDeliveryEvent({
             request,
             userUuid: auth.tokenPayload.sub,
             userEmail: auth.tokenPayload.email,
             eventType: "payment_success",
             orderId: razorpayOrderId,
+            invoiceId: verifyInvoiceId,
             transactionId: razorpayPaymentId,
             items: purchasedSlugs.map((s) => ({ slug: s, title: s, quantity: 1 })),
         });
@@ -2158,15 +2167,20 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                     ? JSON.parse(billForEmail.data)
                     : (billForEmail.data as Record<string, unknown>) ?? {};
             } catch { /* ignore */ }
+            const rzpDataInner = toJsonRecord(rzpBillDataJson?.data as unknown);
+            const rzpOrderObj = toJsonRecord((rzpDataInner?.order as unknown));
+            const rzpOrderTags = toJsonRecord((rzpOrderObj?.order_tags as unknown));
+            const rzpInvoiceId = readString(rzpOrderTags, "INVOICE") || undefined;
             await logDeliveryEvent({
                 userUuid: billForEmail.uid,
                 userEmail: webhookUserEmail,
                 eventType: "payment_success",
                 orderId: billForEmail.orderid,
+                invoiceId: rzpInvoiceId,
                 transactionId: billForEmail.txnid ?? undefined,
                 items: webhookItems,
-                ipAddress: (rzpBillDataJson.customer_ip as string | undefined) ?? undefined,
-                userAgent: (rzpBillDataJson.customer_ua as string | undefined) ?? undefined,
+                ipAddress: billForEmail.payment_success_ip ?? undefined,
+                userAgent: billForEmail.payment_success_ua ?? undefined,
             });
         }
 

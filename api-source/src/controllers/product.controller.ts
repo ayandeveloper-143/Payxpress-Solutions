@@ -144,7 +144,6 @@ export const downloadProductFile = async (request: Request, response: Response) 
         userUuid,
         userEmail,
         eventType: "download",
-        productSlug: slugStr,
         orderId: downloadOrderId,
         invoiceId: downloadInvoiceId,
         transactionId: downloadTxnId,
