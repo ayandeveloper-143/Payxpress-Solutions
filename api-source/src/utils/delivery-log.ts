@@ -14,6 +14,7 @@ export const logDeliveryEvent = async (params: {
     productSlug?: string;
     orderId?: string;
     invoiceId?: string;
+    transactionId?: string;
     items?: Array<{ slug: string; title: string; quantity: number }>;
     ipAddress?: string;
     userAgent?: string;
@@ -24,8 +25,8 @@ export const logDeliveryEvent = async (params: {
 
         await db.execute(
             `INSERT INTO delivery_logs
-                (user_uuid, user_email, event_type, product_slug, order_id, invoice_id, ip_address, user_agent, status, items_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'delivered', CAST(? AS JSON))`,
+                (user_uuid, user_email, event_type, product_slug, order_id, invoice_id, transaction_id, ip_address, user_agent, status, items_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'delivered', CAST(? AS JSON))`,
             [
                 params.userUuid,
                 params.userEmail,
@@ -33,6 +34,7 @@ export const logDeliveryEvent = async (params: {
                 params.productSlug ?? null,
                 params.orderId ?? null,
                 params.invoiceId ?? null,
+                params.transactionId ?? null,
                 ip ?? null,
                 ua ?? null,
                 JSON.stringify(params.items ?? []),

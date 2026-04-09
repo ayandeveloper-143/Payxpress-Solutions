@@ -241,6 +241,7 @@ CREATE TABLE IF NOT EXISTS `delivery_logs` (
   `product_slug` varchar(180) DEFAULT NULL,
   `order_id` varchar(180) DEFAULT NULL,
   `invoice_id` varchar(180) DEFAULT NULL,
+  `transaction_id` varchar(180) DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` varchar(500) DEFAULT NULL,
   `status` varchar(50) NOT NULL DEFAULT 'delivered',
@@ -249,6 +250,7 @@ CREATE TABLE IF NOT EXISTS `delivery_logs` (
   PRIMARY KEY (`id`),
   KEY `idx_delivery_logs_user` (`user_uuid`),
   KEY `idx_delivery_logs_order` (`order_id`),
+  KEY `idx_delivery_logs_txn` (`transaction_id`),
   KEY `idx_delivery_logs_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -275,3 +277,18 @@ CREATE TABLE IF NOT EXISTS `pod_agreements` (
 -- ============================================================
 ALTER TABLE `products`
   ADD COLUMN IF NOT EXISTS `product_file` varchar(500) DEFAULT NULL AFTER `is_active`;
+
+-- 4. delivery_logs: add transaction_id column (if not present)
+--    Links each delivery log entry to the payment gateway transaction.
+-- ============================================================
+ALTER TABLE `delivery_logs`
+  ADD COLUMN IF NOT EXISTS `transaction_id` varchar(180) DEFAULT NULL AFTER `invoice_id`,
+  ADD INDEX IF NOT EXISTS `idx_delivery_logs_txn` (`transaction_id`);
+
+-- 5. bills: add payment_success_ip and payment_success_ua columns (if not present)
+--    Stores the customer IP address and user-agent at checkout time as dedicated
+--    columns so they are always reliably available (not buried in the data JSON).
+-- ============================================================
+ALTER TABLE `bills`
+  ADD COLUMN IF NOT EXISTS `payment_success_ip` varchar(45) DEFAULT NULL AFTER `billing_address`,
+  ADD COLUMN IF NOT EXISTS `payment_success_ua` varchar(500) DEFAULT NULL AFTER `payment_success_ip`;

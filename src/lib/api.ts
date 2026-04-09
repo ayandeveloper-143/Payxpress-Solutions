@@ -436,6 +436,7 @@ export const adminLogin = (payload: AdminLoginPayload) =>
 export interface AdminInvoice {
     orderId: string;
     userId: string;
+    txnId: string | null;
     userEmail: string;
     userName: string;
     status: string;
@@ -443,6 +444,8 @@ export interface AdminInvoice {
     date: string;
     invoiceId: string;
     billingAddress: string;
+    paymentSuccessIp: string | null;
+    userAgent: string | null;
 }
 
 export interface AdminInvoicesResponse {
@@ -482,6 +485,7 @@ export interface AdminDeliveryLog {
     product_slug: string | null;
     order_id: string | null;
     invoice_id: string | null;
+    transaction_id: string | null;
     ip_address: string | null;
     user_agent: string | null;
     status: string;

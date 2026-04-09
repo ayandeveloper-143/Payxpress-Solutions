@@ -168,6 +168,9 @@ const InvoicesTab = () => {
                             <Th>Invoice</Th>
                             <Th>User</Th>
                             <Th>Amount</Th>
+                            <Th>Transaction ID</Th>
+                            <Th>Payment IP</Th>
+                            <Th>User Agent</Th>
                             <Th>Date</Th>
                             <Th>Status</Th>
                             <Th right>Action</Th>
@@ -187,6 +190,15 @@ const InvoicesTab = () => {
                                     <div className="text-xs text-muted-foreground">{inv.userEmail}</div>
                                 </td>
                                 <td className="px-4 py-3 font-medium">{fmtCurrency(inv.total)}</td>
+                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                    {inv.txnId || "—"}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                    {inv.paymentSuccessIp || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] truncate" title={inv.userAgent || undefined}>
+                                    {inv.userAgent || "—"}
+                                </td>
                                 <td className="px-4 py-3 text-muted-foreground text-xs">{fmtDate(inv.date)}</td>
                                 <td className="px-4 py-3">
                                     <Badge variant={inv.status === "success" ? "default" : "secondary"}>
@@ -291,7 +303,7 @@ const DeliveryLogsTab = () => {
             <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-2 max-w-sm flex-1">
                     <Input
-                        placeholder="Search by email, order ID or invoice ID…"
+                        placeholder="Search by email, order ID, invoice ID or transaction ID…"
                         value={pendingSearch}
                         onChange={(e) => setPendingSearch(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -329,7 +341,9 @@ const DeliveryLogsTab = () => {
                         <tr className="border-b bg-muted/50">
                             <Th>Event</Th>
                             <Th>User</Th>
-                            <Th>Invoice / Order</Th>
+                            <Th>Invoice</Th>
+                            <Th>Transaction ID</Th>
+                            <Th>Items</Th>
                             <Th>IP Address</Th>
                             <Th>User Agent</Th>
                             <Th>Timestamp</Th>
@@ -348,17 +362,26 @@ const DeliveryLogsTab = () => {
                                     {log.user_email || log.user_uuid}
                                 </td>
                                 <td className="px-4 py-3">
-                                    {log.invoice_id && (
-                                        <div className="font-mono text-xs font-medium">Inv: {log.invoice_id}</div>
-                                    )}
-                                    {log.order_id && (
-                                        <div className="font-mono text-xs text-muted-foreground">
-                                            Ord: {log.order_id}
-                                        </div>
-                                    )}
-                                    {!log.invoice_id && !log.order_id && (
-                                        <span className="font-mono text-xs">{log.product_slug || "—"}</span>
-                                    )}
+                                    <div className="font-mono text-xs font-medium">
+                                        {log.invoice_id || "—"}
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                    {log.transaction_id || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                    {log.items_json && log.items_json.length > 0 ? (
+                                        <ul className="space-y-0.5">
+                                            {log.items_json.map((item, i) => (
+                                                <li key={i} className="font-mono">
+                                                    {item.slug}
+                                                    {item.quantity > 1 && (
+                                                        <span className="ml-1 text-muted-foreground">×{item.quantity}</span>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : "—"}
                                 </td>
                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                     {log.ip_address || "—"}

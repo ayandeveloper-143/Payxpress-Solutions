@@ -463,12 +463,15 @@ export const requireAdminJwt = (request: Request, response: Response, next: Next
 type BillAdminRow = RowDataPacket & {
     orderid: string;
     uid: string;
+    txnid: string | null;
     status: string;
     total: number;
     created_at: Date | string;
     data: unknown;
     carts: unknown;
     billing_address: string;
+    payment_success_ip: string | null;
+    payment_success_ua: string | null;
     user_email: string;
     user_name: string;
 };
@@ -493,7 +496,8 @@ const extractInvoiceId = (data: unknown): string => {
 export const getAdminInvoices = async (_request: Request, response: Response): Promise<void> => {
     try {
         const [rows] = await db.query<BillAdminRow[]>(
-            `SELECT b.orderid, b.uid, b.status, b.total, b.created_at, b.data, b.billing_address,
+            `SELECT b.orderid, b.uid, b.txnid, b.status, b.total, b.created_at, b.data, b.billing_address,
+                    b.payment_success_ip, b.payment_success_ua,
                     u.email AS user_email, u.name AS user_name
              FROM bills b
              LEFT JOIN users u ON u.uuid = b.uid
@@ -504,6 +508,7 @@ export const getAdminInvoices = async (_request: Request, response: Response): P
         const invoices = rows.map((row) => ({
             orderId: row.orderid,
             userId: row.uid,
+            txnId: row.txnid ?? null,
             userEmail: row.user_email ?? "",
             userName: row.user_name ?? "",
             status: row.status,
@@ -511,6 +516,8 @@ export const getAdminInvoices = async (_request: Request, response: Response): P
             date: row.created_at,
             invoiceId: extractInvoiceId(row.data),
             billingAddress: row.billing_address,
+            paymentSuccessIp: row.payment_success_ip ?? null,
+            userAgent: row.payment_success_ua ?? null,
         }));
 
         response.json({ invoices });
@@ -674,9 +681,9 @@ export const getAdminDeliveryLogs = async (request: Request, response: Response)
         const queryParams: (string | number)[] = [];
 
         if (search) {
-            conditions.push("(user_email LIKE ? OR order_id LIKE ? OR invoice_id LIKE ?)");
+            conditions.push("(user_email LIKE ? OR order_id LIKE ? OR invoice_id LIKE ? OR transaction_id LIKE ?)");
             const like = `%${search}%`;
-            queryParams.push(like, like, like);
+            queryParams.push(like, like, like, like);
         }
         if (eventFilter === "payment_success" || eventFilter === "download") {
             conditions.push("event_type = ?");
@@ -687,7 +694,7 @@ export const getAdminDeliveryLogs = async (request: Request, response: Response)
 
         const [rows] = await db.query<RowDataPacket[]>(
             `SELECT id, user_uuid, user_email, event_type, product_slug, order_id, invoice_id,
-                    ip_address, user_agent, status, items_json, created_at
+                    transaction_id, ip_address, user_agent, status, items_json, created_at
              FROM delivery_logs
              ${where}
              ORDER BY created_at DESC
