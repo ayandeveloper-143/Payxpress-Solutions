@@ -1512,6 +1512,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 eventType: "payment_success",
                 orderId: billForEmail.orderid,
                 invoiceId: undefined,
+                transactionId: billForEmail.txnid ?? undefined,
                 items: deliveryItems,
                 ipAddress: (cfBillDataJson.customer_ip as string | undefined) ?? undefined,
                 userAgent: (cfBillDataJson.customer_ua as string | undefined) ?? undefined,
@@ -1863,6 +1864,7 @@ export const verifyRazorpayPayment = async (request: Request, response: Response
             userEmail: auth.tokenPayload.email,
             eventType: "payment_success",
             orderId: razorpayOrderId,
+            transactionId: razorpayPaymentId,
             items: purchasedSlugs.map((s) => ({ slug: s, title: s, quantity: 1 })),
         });
 
@@ -2151,6 +2153,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                 userEmail: webhookUserEmail,
                 eventType: "payment_success",
                 orderId: billForEmail.orderid,
+                transactionId: billForEmail.txnid ?? undefined,
                 items: webhookItems,
                 ipAddress: (rzpBillDataJson.customer_ip as string | undefined) ?? undefined,
                 userAgent: (rzpBillDataJson.customer_ua as string | undefined) ?? undefined,

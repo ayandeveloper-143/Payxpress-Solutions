@@ -463,6 +463,7 @@ export const requireAdminJwt = (request: Request, response: Response, next: Next
 type BillAdminRow = RowDataPacket & {
     orderid: string;
     uid: string;
+    txnid: string | null;
     status: string;
     total: number;
     created_at: Date | string;
@@ -493,7 +494,7 @@ const extractInvoiceId = (data: unknown): string => {
 export const getAdminInvoices = async (_request: Request, response: Response): Promise<void> => {
     try {
         const [rows] = await db.query<BillAdminRow[]>(
-            `SELECT b.orderid, b.uid, b.status, b.total, b.created_at, b.data, b.billing_address,
+            `SELECT b.orderid, b.uid, b.txnid, b.status, b.total, b.created_at, b.data, b.billing_address,
                     u.email AS user_email, u.name AS user_name
              FROM bills b
              LEFT JOIN users u ON u.uuid = b.uid
@@ -501,17 +502,31 @@ export const getAdminInvoices = async (_request: Request, response: Response): P
              LIMIT 1000`
         );
 
-        const invoices = rows.map((row) => ({
-            orderId: row.orderid,
-            userId: row.uid,
-            userEmail: row.user_email ?? "",
-            userName: row.user_name ?? "",
-            status: row.status,
-            total: row.total,
-            date: row.created_at,
-            invoiceId: extractInvoiceId(row.data),
-            billingAddress: row.billing_address,
-        }));
+        const invoices = rows.map((row) => {
+            let paymentSuccessIp: string | null = null;
+            let userAgent: string | null = null;
+            try {
+                const d = typeof row.data === "string"
+                    ? JSON.parse(row.data) as Record<string, unknown>
+                    : (row.data as Record<string, unknown>) ?? {};
+                paymentSuccessIp = (d.customer_ip as string | undefined) ?? null;
+                userAgent = (d.customer_ua as string | undefined) ?? null;
+            } catch { /* ignore */ }
+            return {
+                orderId: row.orderid,
+                userId: row.uid,
+                txnId: row.txnid ?? null,
+                userEmail: row.user_email ?? "",
+                userName: row.user_name ?? "",
+                status: row.status,
+                total: row.total,
+                date: row.created_at,
+                invoiceId: extractInvoiceId(row.data),
+                billingAddress: row.billing_address,
+                paymentSuccessIp,
+                userAgent,
+            };
+        });
 
         response.json({ invoices });
     } catch (err) {
