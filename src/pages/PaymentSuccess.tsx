@@ -2,7 +2,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Loader2, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { fetchCashfreeOrderStatus, fetchRazorpayOrderStatus } from "@/lib/api";
@@ -18,14 +18,26 @@ const PaymentSuccess = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [isVerifying, setIsVerifying] = useState(true);
+    const clearCartRef = useRef(clearCart);
+    const refreshUserRef = useRef(refreshUser);
 
     useEffect(() => {
-        const orderId = searchParams.get("order_id");
+        clearCartRef.current = clearCart;
+    }, [clearCart]);
 
+    useEffect(() => {
+        refreshUserRef.current = refreshUser;
+    }, [refreshUser]);
+
+    const orderId = searchParams.get("order_id")?.trim() ?? "";
+
+    useEffect(() => {
         if (!orderId) {
             navigate("/checkout", { replace: true });
             return;
         }
+        setIsVerifying(true);
+        let isCancelled = false;
 
         const verify = async () => {
             try {
@@ -37,20 +49,30 @@ const PaymentSuccess = () => {
                 const data = await fetchStatus;
 
                 if (data.orderStatus !== "Success") {
-                    navigate("/checkout", { replace: true });
+                    if (!isCancelled) {
+                        navigate("/checkout", { replace: true });
+                    }
                 } else {
-                    clearCart();
-                    await refreshUser?.();
-                    setIsVerifying(false);
+                    clearCartRef.current();
+                    await refreshUserRef.current?.();
+                    if (!isCancelled) {
+                        setIsVerifying(false);
+                    }
                 }
             } catch (error) {
                 console.error("Payment status verification failed:", error);
-                navigate("/checkout", { replace: true });
+                if (!isCancelled) {
+                    navigate("/checkout", { replace: true });
+                }
             }
         };
 
         verify();
-    }, [searchParams, navigate, clearCart, refreshUser]);
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [orderId, navigate]);
 
     // Handler to navigate after successful payment verification
     const handleNavigate = (path: string) => {

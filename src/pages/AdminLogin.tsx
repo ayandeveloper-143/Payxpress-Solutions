@@ -15,8 +15,6 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import { ShieldCheck } from "lucide-react";
 
 const loginSchema = z.object({
@@ -61,9 +59,8 @@ const AdminLogin = () => {
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
-            <Navbar />
 
-            <main className="container-main pt-24 pb-12 min-h-[calc(100vh-64px)] flex items-center justify-center">
+            <main className="container-main pt-12 pb-12 min-h-[calc(100vh-64px)] flex items-center justify-center">
                 <div className="w-full max-w-md">
                     <div className="auth-form-enter">
                         <div className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
@@ -140,7 +137,6 @@ const AdminLogin = () => {
                 </div>
             </main>
 
-            <Footer />
         </div>
     );
 };

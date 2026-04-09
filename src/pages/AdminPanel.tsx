@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "@/context/AdminAuthContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import ScrollReveal from "@/components/ScrollReveal";
 import { createPortal } from "react-dom";
 import {
@@ -1063,9 +1061,8 @@ const AdminPanel = () => {
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-background">
-            <Navbar />
 
-            <main className="container-main pt-28 pb-16 space-y-10">
+            <main className="container-main pt-12 pb-16 space-y-10">
                 <ScrollReveal className="flex items-end justify-between flex-wrap gap-4">
                     <div className="space-y-1">
                         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Admin</p>
@@ -1093,8 +1090,8 @@ const AdminPanel = () => {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.id
-                                        ? "bg-accent text-accent-foreground"
-                                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    ? "bg-accent text-accent-foreground"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                     }`}
                             >
                                 {tab.icon}
@@ -1114,7 +1111,6 @@ const AdminPanel = () => {
                 </ScrollReveal>
             </main>
 
-            <Footer />
         </div>
     );
 };

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { AuthUser, AuthContextType } from "@/types/auth";
+import { ApiRequestError } from "@/lib/api";
 import type { AuthUserResponse } from "@/lib/api";
 import {
   getCurrentUser,
@@ -34,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   // Helper to refresh user/order history on demand
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const token = localStorage.getItem("auth_token");
     if (!token) {
       setUser(null);
@@ -47,14 +48,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const authUser = mapUserFromApi(response.user);
       setUser(authUser);
       localStorage.setItem("user", JSON.stringify(authUser));
-    } catch {
-      setUser(null);
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user");
+    } catch (error) {
+      // Only force logout on token/auth failures. For transient/network/server
+      // errors, keep existing session data to avoid unexpected logout loops.
+      if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+        setUser(null);
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user");
+      }
     } finally {
       setIsAuthLoading(false);
     }
-  };
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -62,53 +67,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const response = await loginUser({ email, password });
     const authUser = mapUserFromApi(response.user);
     setUser(authUser);
     localStorage.setItem("auth_token", response.token);
     localStorage.setItem("user", JSON.stringify(authUser));
-  };
+  }, []);
 
-  const signup = async (email: string, password: string, name: string) => {
+  const signup = useCallback(async (email: string, password: string, name: string) => {
     const response = await startSignup({ name, email, password });
     return {
       requiresEmailVerification: response.requiresEmailVerification,
       email: response.email,
     };
-  };
+  }, []);
 
-  const verifySignupToken = async (token: string) => {
+  const verifySignupToken = useCallback(async (token: string) => {
     const response = await verifySignupLink({ token });
     return response.message;
-  };
+  }, []);
 
-  const forgotPassword = async (email: string) => {
+  const forgotPassword = useCallback(async (email: string) => {
     await startForgotPassword({ email });
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     logoutUser().catch(() => {
       // Ignore network/logout errors and clear local state anyway.
     });
     setUser(null);
     localStorage.clear();
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      isLoggedIn: !!user,
+      isAuthLoading,
+      login,
+      signup,
+      verifySignupToken,
+      forgotPassword,
+      logout,
+      refreshUser,
+    }),
+    [user, isAuthLoading, login, signup, verifySignupToken, forgotPassword, logout, refreshUser]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoggedIn: !!user,
-        isAuthLoading,
-        login,
-        signup,
-        verifySignupToken,
-        forgotPassword,
-        logout,
-        refreshUser,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

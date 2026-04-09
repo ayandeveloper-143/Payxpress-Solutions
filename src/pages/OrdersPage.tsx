@@ -23,12 +23,13 @@ const OrdersPage = () => {
   // Only refresh on first mount and when tab becomes visible (not on every render)
   const didInitial = useRef(false);
   useEffect(() => {
-    if (!didInitial.current) {
-      refreshUser?.();
-      didInitial.current = true;
+    if (didInitial.current || isAuthLoading || !isLoggedIn) {
+      return;
     }
-    // Only refresh on mount, not on tab visibility change
-  }, [refreshUser]);
+
+    didInitial.current = true;
+    refreshUser?.();
+  }, [isAuthLoading, isLoggedIn, refreshUser]);
   const { purchasedItems } = usePurchased();
   const { toast } = useToast();
   const { data: productsData, isLoading: isProductsLoading } = useQuery({
