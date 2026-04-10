@@ -26,7 +26,8 @@ type CheckoutErrorResponse = {
 const cashfreeInstances: Partial<Record<string, CashfreeInstance>> = {};
 
 const initializeCashfree = async (mode: "sandbox" | "production"): Promise<CashfreeInstance> => {
-  if (cashfreeInstances[mode]) return cashfreeInstances[mode] as CashfreeInstance;
+  const cached = cashfreeInstances[mode];
+  if (cached) return cached;
 
   try {
     const instance = await load({ mode });

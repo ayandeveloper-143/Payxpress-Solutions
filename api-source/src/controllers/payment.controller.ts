@@ -2438,6 +2438,7 @@ export const createOrder = async (request: Request, response: Response) => {
                     customer_phone: data.phone,
                 },
                 order_meta: {
+                    // {order_id} is a Cashfree URL template placeholder that is replaced with the actual order ID at runtime.
                     return_url: `${env.clientOrigin.replace(/\/$/, "")}/payment-success?order_id={order_id}&gateway=cashfree`,
                     notify_url: `${env.clientOrigin.replace(/\/$/, "")}/api/webhook`,
                 },
