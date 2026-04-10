@@ -9,8 +9,6 @@ import { fetchCashfreeOrderStatus, fetchRazorpayOrderStatus } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-const paymentGateway = (import.meta.env.VITE_PAYMENT_GATEWAY ?? "cashfree").toLowerCase();
-
 
 const PaymentSuccess = () => {
     const { clearCart } = useCart();
@@ -30,6 +28,7 @@ const PaymentSuccess = () => {
     }, [refreshUser]);
 
     const orderId = searchParams.get("order_id")?.trim() ?? "";
+    const gateway = searchParams.get("gateway")?.toLowerCase() ?? "cashfree";
 
     useEffect(() => {
         if (!orderId) {
@@ -42,7 +41,7 @@ const PaymentSuccess = () => {
         const verify = async () => {
             try {
                 const fetchStatus =
-                    paymentGateway === "razorpay"
+                    gateway === "razorpay"
                         ? fetchRazorpayOrderStatus(orderId)
                         : fetchCashfreeOrderStatus(orderId);
 

@@ -24,3 +24,4 @@ public/projects
 *.njsproj
 *.sln
 *.sw?
+.env

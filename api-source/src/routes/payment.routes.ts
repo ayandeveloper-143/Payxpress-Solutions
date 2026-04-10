@@ -1,7 +1,10 @@
 import { Router } from "express";
-import { cashfreeWebhook, createCashfreeSession, getCashfreeOrderStatus, createRazorpayOrder, verifyRazorpayPayment, getRazorpayOrderStatus } from "../controllers/payment.controller.js";
+import { cashfreeWebhook, createCashfreeSession, getCashfreeOrderStatus, createRazorpayOrder, verifyRazorpayPayment, getRazorpayOrderStatus, createOrder } from "../controllers/payment.controller.js";
 
 const paymentRouter = Router();
+
+// Unified create order endpoint (backend-driven gateway selection)
+paymentRouter.post("/createorder", createOrder);
 
 paymentRouter.post("/payments/cashfree/session", createCashfreeSession);
 paymentRouter.get("/payments/cashfree/orders/:orderId/status", getCashfreeOrderStatus);
