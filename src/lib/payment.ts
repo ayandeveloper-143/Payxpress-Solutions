@@ -1,22 +1,12 @@
 import { load } from "@cashfreepayments/cashfree-js";
-import { ApiRequestError, createCashfreeSession, createRazorpayOrder, verifyRazorpayPayment } from "@/lib/api";
-
-const cashfreeMode = import.meta.env.VITE_CASHFREE_MODE === "production" ? "production" : "sandbox";
-const paymentGatewayEnabled = import.meta.env.VITE_PAYMENT_GATEWAY_ENABLED !== "false";
-
-interface CashfreePaymentParams {
-  orderId?: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  billingAddress?: string;
-  orderNote: string;
-}
+import { ApiRequestError, createOrder } from "@/lib/api";
+import type { CreateOrderCashfreeResponse, CreateOrderRazorpayResponse } from "@/lib/api";
 
 interface PaymentResult {
   success: boolean;
   message: string;
   orderId?: string;
+  gateway?: string;
 }
 
 interface CashfreeInstance {
@@ -32,103 +22,21 @@ type CheckoutErrorResponse = {
   };
 };
 
-let cashfree: CashfreeInstance | null = null;
+// Cache Cashfree instances by mode to avoid re-initialization
+const cashfreeInstances: Partial<Record<string, CashfreeInstance>> = {};
 
-const initializeCashfree = async () => {
-  if (cashfree) return cashfree;
+const initializeCashfree = async (mode: "sandbox" | "production"): Promise<CashfreeInstance> => {
+  if (cashfreeInstances[mode]) return cashfreeInstances[mode] as CashfreeInstance;
 
   try {
-    cashfree = await load({
-      mode: cashfreeMode,
-    });
-    return cashfree;
+    const instance = await load({ mode });
+    cashfreeInstances[mode] = instance as CashfreeInstance;
+    return cashfreeInstances[mode] as CashfreeInstance;
   } catch (error) {
     console.error("Failed to initialize Cashfree:", error);
     throw error;
   }
 };
-
-export const handleCashfreePayment = async (params: CashfreePaymentParams): Promise<PaymentResult> => {
-  try {
-    if (!paymentGatewayEnabled) {
-      return {
-        success: false,
-        message: "Payment gateway is currently disabled.",
-      };
-    }
-
-    const cf = await initializeCashfree();
-
-    // Request a real payment session from backend.
-    const session = await getSession(params);
-
-    const checkoutOptions = {
-      paymentSessionId: session.paymentSessionId,
-      redirectTarget: "_modal" as const,
-    };
-
-    const checkoutResponse = (await cf.checkout(checkoutOptions)) as CheckoutErrorResponse;
-
-    if (checkoutResponse?.error?.message) {
-      return {
-        success: false,
-        message: checkoutResponse.error.message,
-      };
-    }
-
-    return {
-      success: true,
-      message: "Payment completed",
-      orderId: session.orderId,
-    };
-  } catch (error) {
-    console.error("Payment error:", error);
-
-    if (error instanceof ApiRequestError) {
-      const fieldErrors = error.errors
-        ? Object.values(error.errors)
-          .flat()
-          .filter((item) => typeof item === "string" && item.trim().length > 0)
-        : [];
-
-      return {
-        success: false,
-        message: fieldErrors[0] ?? error.message,
-      };
-    }
-
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "Payment failed",
-    };
-  }
-};
-
-const getSession = async (params: CashfreePaymentParams): Promise<{ paymentSessionId: string; orderId: string }> => {
-  const response = await createCashfreeSession({
-    orderId: params.orderId,
-    customerName: params.customerName,
-    customerEmail: params.customerEmail,
-    customerPhone: params.customerPhone,
-    billingAddress: params.billingAddress,
-    orderNote: params.orderNote,
-  });
-
-  return {
-    paymentSessionId: response.paymentSessionId,
-    orderId: response.orderId,
-  };
-};
-
-// ---- Razorpay popup checkout ----
-
-interface RazorpayPaymentParams {
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  billingAddress?: string;
-  orderNote: string;
-}
 
 interface RazorpaySuccessResponse {
   razorpay_order_id: string;
@@ -175,76 +83,89 @@ const loadRazorpayScript = (): Promise<void> =>
     document.head.appendChild(script);
   });
 
-export const handleRazorpayPayment = async (params: RazorpayPaymentParams): Promise<PaymentResult> => {
-  try {
-    if (!paymentGatewayEnabled) {
-      return { success: false, message: "Payment gateway is currently disabled." };
-    }
+const handleCashfreeOrderResult = async (order: CreateOrderCashfreeResponse): Promise<PaymentResult> => {
+  const cf = await initializeCashfree(order.cashfreeMode);
 
-    // Create order on backend
-    const order = await createRazorpayOrder({
-      customerName: params.customerName,
-      customerEmail: params.customerEmail,
-      customerPhone: params.customerPhone,
-      billingAddress: params.billingAddress,
-      orderNote: params.orderNote,
-    });
+  const checkoutResponse = (await cf.checkout({
+    paymentSessionId: order.paymentSessionId,
+    redirectTarget: "_modal",
+  })) as CheckoutErrorResponse;
 
-    // Load Razorpay JS SDK
-    await loadRazorpayScript();
+  if (checkoutResponse?.error?.message) {
+    return { success: false, message: checkoutResponse.error.message };
+  }
+
+  return { success: true, message: "Payment completed", orderId: order.orderId, gateway: "cashfree" };
+};
+
+const handleRazorpayOrderResult = (order: CreateOrderRazorpayResponse): Promise<PaymentResult> => {
+  return new Promise<PaymentResult>((resolve) => {
+    const rzpOptions: Record<string, unknown> = {
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: "PayXpress Solutions",
+      description: "Purchase",
+      order_id: order.orderId,
+      handler: async (response: RazorpaySuccessResponse) => {
+        try {
+          const { verifyRazorpayPayment } = await import("@/lib/api");
+          await verifyRazorpayPayment({
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          });
+          resolve({ success: true, message: "Payment completed", orderId: order.orderId, gateway: "razorpay" });
+        } catch (error) {
+          resolve({
+            success: false,
+            message: error instanceof ApiRequestError ? error.message : "Payment verification failed.",
+          });
+        }
+      },
+      prefill: order.prefill,
+      modal: {
+        ondismiss: () => {
+          resolve({ success: false, message: "Payment was cancelled." });
+        },
+      },
+      theme: { color: "#7c3aed" },
+    };
 
     const RazorpayClass = (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay;
+    const rzp = new RazorpayClass(rzpOptions);
 
-    // Open Razorpay popup and wait for payment result
-    return new Promise<PaymentResult>((resolve) => {
-      const rzpOptions: Record<string, unknown> = {
-        key: order.keyId,
-        amount: order.amount,
-        currency: order.currency,
-        name: "PayXpress Solutions",
-        description: "Purchase",
-        order_id: order.orderId,
-        handler: async (response: RazorpaySuccessResponse) => {
-          try {
-            await verifyRazorpayPayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            });
-            resolve({ success: true, message: "Payment completed", orderId: order.orderId });
-          } catch (error) {
-            resolve({
-              success: false,
-              message: error instanceof ApiRequestError ? error.message : "Payment verification failed.",
-            });
-          }
-        },
-        prefill: {
-          name: params.customerName,
-          email: params.customerEmail,
-          contact: params.customerPhone,
-        },
-        modal: {
-          ondismiss: () => {
-            resolve({ success: false, message: "Payment was cancelled." });
-          },
-        },
-        theme: { color: "#7c3aed" },
-      };
-
-      const rzp = new RazorpayClass(rzpOptions);
-
-      rzp.on("payment.failed", (response: RazorpayFailureResponse) => {
-        resolve({
-          success: false,
-          message: response.error?.description || "Payment failed.",
-        });
+    rzp.on("payment.failed", (response: RazorpayFailureResponse) => {
+      resolve({
+        success: false,
+        message: response.error?.description || "Payment failed.",
       });
-
-      rzp.open();
     });
+
+    rzp.open();
+  });
+};
+
+export interface HandlePaymentParams {
+  phone: string;
+  address?: string;
+}
+
+export const handlePayment = async (params: HandlePaymentParams): Promise<PaymentResult> => {
+  try {
+    const order = await createOrder({
+      phone: params.phone,
+      address: params.address,
+    });
+
+    if (order.gateway === "razorpay") {
+      await loadRazorpayScript();
+      return await handleRazorpayOrderResult(order);
+    }
+
+    return await handleCashfreeOrderResult(order);
   } catch (error) {
-    console.error("Razorpay payment error:", error);
+    console.error("Payment error:", error);
 
     if (error instanceof ApiRequestError) {
       const fieldErrors = error.errors

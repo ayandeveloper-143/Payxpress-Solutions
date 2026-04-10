@@ -271,6 +271,47 @@ export const fetchRazorpayOrderStatus = (orderId: string) =>
         method: "GET",
     });
 
+// ---- Unified create order API ----
+
+export interface CreateOrderPayload {
+    phone: string;
+    address?: string;
+}
+
+interface CreateOrderBaseResponse {
+    message: string;
+    orderId: string;
+    breakdown?: Record<string, unknown>;
+}
+
+export interface CreateOrderCashfreeResponse extends CreateOrderBaseResponse {
+    gateway: "cashfree";
+    cashfreeMode: "sandbox" | "production";
+    paymentSessionId: string;
+}
+
+export interface CreateOrderRazorpayResponse extends CreateOrderBaseResponse {
+    gateway: "razorpay";
+    amount: number;
+    currency: string;
+    keyId: string;
+    prefill: {
+        name: string;
+        email: string;
+        contact: string;
+    };
+}
+
+export type CreateOrderResponse = CreateOrderCashfreeResponse | CreateOrderRazorpayResponse;
+
+export const createOrder = (payload: CreateOrderPayload) =>
+    request<CreateOrderResponse>("/createorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        requiresAuth: true,
+        body: JSON.stringify(payload),
+    });
+
 export const loginUser = (payload: LoginPayload) =>
     request<LoginResponse>("/auth/login", {
         method: "POST",

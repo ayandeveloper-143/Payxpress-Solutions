@@ -169,6 +169,19 @@ type RazorpayPaymentDetails = {
     };
 };
 
+const createOrderSchema = z.object({
+    phone: z.string().trim().min(10).max(20),
+    address: z.preprocess(
+        (value) => {
+            if (typeof value === "string" && value.trim().length === 0) {
+                return undefined;
+            }
+            return value;
+        },
+        z.string().trim().min(5).max(500).optional()
+    ),
+});
+
 const createRazorpayOrderSchema = z.object({
     customerName: z.string().trim().min(2).max(100),
     customerEmail: z.string().trim().email().max(255),
@@ -2234,5 +2247,303 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
         response.status(500).json({ message: "Unable to process webhook right now." });
     } finally {
         connection?.release();
+    }
+};
+
+// ============================================================
+// Unified create order endpoint (backend-driven gateway selection)
+// ============================================================
+
+export const createOrder = async (request: Request, response: Response) => {
+    try {
+        if (!env.paymentGatewayEnabled) {
+            response.status(503).json({ message: "Payment gateway is currently disabled." });
+            return;
+        }
+
+        const parsed = createOrderSchema.safeParse(request.body);
+        if (!parsed.success) {
+            response.status(400).json({
+                message: "Invalid payment request.",
+                errors: parsed.error.flatten().fieldErrors,
+            });
+            return;
+        }
+
+        const auth = await authenticateRequest(request, response);
+        if (!auth) return;
+
+        const orderDetails = await buildCartOrderDetails(auth.tokenPayload.sub, response);
+        if (!orderDetails) return;
+
+        const { user, cartItems, subtotal, total, gstAmount, cgstAmount, sgstAmount, gatewayFee, gstType, gstPercent, breakdown, invoiceId } = orderDetails;
+
+        const data = parsed.data;
+        const billingAddressRaw = data.address ?? "";
+        const customerIp = getClientIp(request);
+        const customerUa = (request.headers["user-agent"] as string | undefined) ?? null;
+
+        const gateway = env.paymentGateway;
+
+        if (gateway === "razorpay") {
+            if (!env.razorpayKeyId || !env.razorpayKeySecret) {
+                response.status(500).json({ message: "Razorpay credentials are not configured on server." });
+                return;
+            }
+
+            const amountInPaise = Math.round(total * 100);
+            const receipt = `RZP_${Date.now()}`.slice(0, 40);
+
+            const rzpPayload = {
+                amount: amountInPaise,
+                currency: "INR",
+                receipt,
+                notes: {
+                    customer_name: user.name,
+                    customer_email: user.email,
+                    customer_phone: data.phone,
+                    invoice_id: invoiceId,
+                },
+            };
+
+            const credentials = Buffer.from(`${env.razorpayKeyId}:${env.razorpayKeySecret}`).toString("base64");
+            const rzpResponse = await fetch("https://api.razorpay.com/v1/orders", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Basic ${credentials}`,
+                },
+                body: JSON.stringify(rzpPayload),
+            });
+
+            const rzpData = (await rzpResponse.json().catch(() => ({}))) as RazorpayOrderResponse;
+
+            if (!rzpResponse.ok || !rzpData.id) {
+                response.status(rzpResponse.status || 502).json({
+                    message: typeof rzpData.description === "string" ? rzpData.description : "Unable to create Razorpay order.",
+                });
+                return;
+            }
+
+            const razorpayOrderId = rzpData.id;
+
+            const seedData = {
+                event: "razorpay_order_created",
+                gateway: "razorpay",
+                customer_ip: customerIp || null,
+                customer_ua: customerUa,
+                razorpay_order: rzpData,
+                data: {
+                    customer_details: {
+                        customer_name: user.name,
+                        customer_email: user.email,
+                        customer_phone: data.phone,
+                    },
+                    order: {
+                        order_id: razorpayOrderId,
+                        order_tags: { INVOICE: invoiceId },
+                    },
+                },
+            };
+
+            const cartDetailsForBill = {
+                cart_name: `${user.name} cart`,
+                cart_items: cartItems,
+            };
+
+            await db.query(
+                `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, payment_success_ip, payment_success_ua, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+                 VALUES (?, NULL, ?, CAST(? AS JSON), ?, ?, ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    uid = VALUES(uid),
+                    carts = VALUES(carts),
+                    billing_address = VALUES(billing_address),
+                    payment_success_ip = VALUES(payment_success_ip),
+                    payment_success_ua = VALUES(payment_success_ua),
+                    data = VALUES(data),
+                    gst_type = VALUES(gst_type),
+                    gst_percent = VALUES(gst_percent),
+                    gst_amount = VALUES(gst_amount),
+                    cgst_amount = VALUES(cgst_amount),
+                    sgst_amount = VALUES(sgst_amount),
+                    gateway_fee = VALUES(gateway_fee),
+                    total = VALUES(total),
+                    status = 'pending',
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    razorpayOrderId,
+                    user.uuid,
+                    JSON.stringify(cartDetailsForBill),
+                    billingAddressRaw,
+                    customerIp || null,
+                    customerUa,
+                    JSON.stringify(seedData),
+                    gstType,
+                    gstPercent,
+                    gstAmount,
+                    cgstAmount,
+                    sgstAmount,
+                    gatewayFee,
+                    total,
+                ]
+            );
+
+            response.status(201).json({
+                gateway: "razorpay",
+                breakdown,
+                message: "Razorpay order created.",
+                orderId: razorpayOrderId,
+                amount: amountInPaise,
+                currency: "INR",
+                keyId: env.razorpayKeyId,
+                prefill: {
+                    name: user.name,
+                    email: user.email,
+                    contact: data.phone,
+                },
+            });
+        } else {
+            // Default: Cashfree
+            if (!env.cashfreeAppId || !env.cashfreeSecretKey) {
+                response.status(500).json({ message: "Cashfree credentials are not configured on server." });
+                return;
+            }
+
+            const orderId = `ORDER_${Date.now()}`;
+            const baseUrl =
+                env.cashfreeMode === "production"
+                    ? "https://api.cashfree.com"
+                    : "https://sandbox.cashfree.com";
+
+            const customerBillingAddress = data.address
+                ? {
+                      full_name: user.name,
+                      country: "India",
+                      city: "NA",
+                      state: "NA",
+                      pincode: "NA",
+                      address_1: data.address,
+                      address_2: "",
+                  }
+                : undefined;
+
+            const cfPayload = {
+                order_id: orderId,
+                order_amount: subtotal,
+                order_currency: "INR",
+                customer_details: {
+                    customer_id: user.uuid,
+                    customer_name: user.name,
+                    customer_email: user.email,
+                    customer_phone: data.phone,
+                },
+                order_meta: {
+                    return_url: `${env.clientOrigin.replace(/\/$/, "")}/payment-success?order_id={order_id}&gateway=cashfree`,
+                    notify_url: `${env.clientOrigin.replace(/\/$/, "")}/api/webhook`,
+                },
+                order_tags: {
+                    INVOICE: invoiceId,
+                },
+                cart_details: {
+                    cart_name: `${user.name} cart`,
+                    cart_items: cartItems,
+                    ...(customerBillingAddress ? { customer_billing_address: customerBillingAddress } : {}),
+                },
+            };
+
+            const cashfreeResponse = await fetch(`${baseUrl}/pg/orders`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-client-id": env.cashfreeAppId,
+                    "x-client-secret": env.cashfreeSecretKey,
+                    "x-api-version": env.cashfreeApiVersion,
+                },
+                body: JSON.stringify(cfPayload),
+            });
+
+            const responseData = (await cashfreeResponse.json().catch(() => ({}))) as CashfreeOrderResponse;
+
+            if (!cashfreeResponse.ok || !responseData.payment_session_id) {
+                response.status(cashfreeResponse.status || 502).json({
+                    message:
+                        typeof responseData.message === "string"
+                            ? responseData.message
+                            : "Unable to create Cashfree payment session.",
+                });
+                return;
+            }
+
+            const finalOrderId = responseData.order_id ?? orderId;
+
+            const billSeedData = {
+                event: "cashfree_session_created",
+                cashfree_response: responseData,
+                data: {
+                    order: {
+                        order_id: finalOrderId,
+                        order_tags: { INVOICE: invoiceId },
+                        order_amount: subtotal,
+                        order_currency: "INR",
+                    },
+                    customer_details: {
+                        customer_name: user.name,
+                        customer_email: user.email,
+                        customer_phone: data.phone,
+                    },
+                },
+                customer_ip: customerIp || null,
+                customer_ua: customerUa,
+            };
+
+            await db.query(
+                `INSERT INTO bills (orderid, txnid, uid, carts, billing_address, payment_success_ip, payment_success_ua, data, status, gst_type, gst_percent, gst_amount, cgst_amount, sgst_amount, gateway_fee, total)
+                 VALUES (?, NULL, ?, CAST(? AS JSON), ?, ?, ?, CAST(? AS JSON), 'pending', ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    uid = VALUES(uid),
+                    carts = VALUES(carts),
+                    billing_address = VALUES(billing_address),
+                    payment_success_ip = VALUES(payment_success_ip),
+                    payment_success_ua = VALUES(payment_success_ua),
+                    data = VALUES(data),
+                    gst_type = VALUES(gst_type),
+                    gst_percent = VALUES(gst_percent),
+                    gst_amount = VALUES(gst_amount),
+                    cgst_amount = VALUES(cgst_amount),
+                    sgst_amount = VALUES(sgst_amount),
+                    gateway_fee = VALUES(gateway_fee),
+                    total = VALUES(total),
+                    status = 'pending',
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    finalOrderId,
+                    user.uuid,
+                    JSON.stringify(cfPayload.cart_details),
+                    billingAddressRaw,
+                    customerIp || null,
+                    customerUa,
+                    JSON.stringify(billSeedData),
+                    gstType,
+                    gstPercent,
+                    gstAmount,
+                    cgstAmount,
+                    sgstAmount,
+                    gatewayFee,
+                    total,
+                ]
+            );
+
+            response.status(201).json({
+                gateway: "cashfree",
+                cashfreeMode: env.cashfreeMode,
+                breakdown,
+                message: "Payment session created.",
+                orderId: finalOrderId,
+                paymentSessionId: responseData.payment_session_id,
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        response.status(500).json({ message: "Unable to create order right now." });
     }
 };

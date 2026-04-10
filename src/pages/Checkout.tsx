@@ -13,12 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
-import { handleCashfreePayment, handleRazorpayPayment } from "@/lib/payment";
+import { handlePayment } from "@/lib/payment";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-
-const paymentGatewayEnabled = import.meta.env.VITE_PAYMENT_GATEWAY_ENABLED !== "false";
-const paymentGateway = (import.meta.env.VITE_PAYMENT_GATEWAY ?? "cashfree").toLowerCase();
 
 const checkoutSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -126,19 +123,11 @@ const Checkout = () => {
       // Always sync cart to server before payment (prevents empty cart bug)
       await syncCartToServer();
 
-      // Call the active payment gateway
-      const paymentParams = {
-        customerName: values.name,
-        customerEmail: values.email,
-        customerPhone: values.phone,
-        billingAddress: values.address?.trim() || undefined,
-        orderNote: `Order by ${values.name}`,
-      };
-
-      const result =
-        paymentGateway === "razorpay"
-          ? await handleRazorpayPayment(paymentParams)
-          : await handleCashfreePayment(paymentParams);
+      // Call the unified payment handler (gateway is determined by backend)
+      const result = await handlePayment({
+        phone: values.phone,
+        address: values.address?.trim() || undefined,
+      });
 
       if (result.success === true && result.orderId) {
         // Record POD agreement (non-fatal)
@@ -149,7 +138,7 @@ const Checkout = () => {
             orderId: result.orderId,
           }).catch((err) => console.warn("[pod] Failed to store agreement:", err));
         }
-        navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}`);
+        navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}&gateway=${encodeURIComponent(result.gateway ?? "cashfree")}`);
       } else {
         toast({
           title: "Payment Failed",
@@ -280,14 +269,14 @@ const Checkout = () => {
                   <Button
                     type="submit"
                     className="w-full bg-accent text-accent-foreground hover:bg-accent/90 py-6 text-base"
-                    disabled={isProcessing || !paymentGatewayEnabled || !agreedToTnc}
+                    disabled={isProcessing || !agreedToTnc}
                   >
                     {isProcessing ? (
                       <span className="flex items-center justify-center gap-2">
                         <Loader2 className="animate-spin" size={20} />
                         Processing...
                       </span>
-                    ) : paymentGatewayEnabled ? "Proceed to Payment" : "Payment Unavailable"}
+                    ) : "Proceed to Payment"}
                   </Button>
                 </form>
               </Form>
