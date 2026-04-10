@@ -1,5 +1,6 @@
 
 import { createHash } from "node:crypto";
+import type { ResultSetHeader } from "mysql2";
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { db } from "../config/db.js";
@@ -28,6 +29,9 @@ const transporter = hasMailConfig
   : null;
 
 const fromAddress = env.mailFrom || env.smtpUser || "no-reply@example.com";
+const EMAIL_SENT_FINALIZE_MINUTES = 5; // After how many minutes a "sending" email log should be finalized to "sent"
+const EMAIL_STATUS_FINALIZER_INTERVAL_MS = 60_000;
+let emailStatusFinalizerTimer: NodeJS.Timeout | null = null;
 
 const sendMail = async (params: {
   to: string;
@@ -35,49 +39,125 @@ const sendMail = async (params: {
   html: string;
   text: string;
   emailType: string;
+  attachments?: Array<{
+    filename: string;
+    path: string;
+    contentType?: string;
+  }>;
 }) => {
+  const logId = await createEmailLogEntry(params.to, params.subject, params.emailType);
+
   if (!transporter) {
     console.warn("SMTP not configured. Skipping email send.", {
       to: params.to,
       subject: params.subject,
     });
-    await insertEmailLog(params.to, params.subject, params.emailType, "skipped", null);
+    await updateEmailLogEntry(logId, "skipped", null);
     return;
   }
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: fromAddress,
       to: params.to,
       subject: params.subject,
       html: params.html,
       text: params.text,
+      attachments: params.attachments,
+      headers: logId ? { "X-Log-Id": String(logId) } : {},
     });
-    await insertEmailLog(params.to, params.subject, params.emailType, "sent", null);
+
+    const rejected = Array.isArray((info as { rejected?: unknown }).rejected)
+      ? ((info as { rejected: unknown[] }).rejected as string[])
+      : [];
+
+    if (rejected.length > 0) {
+      const rejectedList = rejected.join(", ");
+      await updateEmailLogEntry(logId, "failed", `SMTP rejected recipient(s): ${rejectedList}`);
+      throw new Error(`SMTP rejected recipient(s): ${rejectedList}`);
+    }
+
+    // SMTP accepted the mail. Keep it in "sending" for 20 minutes so
+    // bounce-tracker can still flip it to failed if a delayed DSN arrives.
+    await updateEmailLogEntry(logId, "sending", null);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    await insertEmailLog(params.to, params.subject, params.emailType, "failed", errMsg);
+    await updateEmailLogEntry(logId, "failed", errMsg);
     throw err;
   }
 };
 
-const insertEmailLog = async (
+const createEmailLogEntry = async (
   recipient: string,
   subject: string,
   emailType: string,
-  status: "sent" | "failed" | "skipped",
-  errorMsg: string | null
-): Promise<void> => {
+): Promise<number | null> => {
   try {
-    await db.execute(
+    const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO email_logs (recipient, subject, email_type, status, error_msg)
        VALUES (?, ?, ?, ?, ?)`,
-      [recipient, subject, emailType, status, errorMsg]
+      [recipient, subject, emailType, "sending", "Accepted by SMTP. Waiting for bounce window."]
     );
+
+    return result.insertId;
   } catch (logErr) {
     // Non-fatal: email_logs table may not exist yet (run migration script first)
-    console.error("[email-log] Failed to insert email log:", logErr);
+    console.error("[email-log] Failed to create email log entry:", logErr);
+    return null;
   }
+};
+
+const updateEmailLogEntry = async (
+  logId: number | null,
+  status: "sending" | "sent" | "failed" | "skipped",
+  errorMsg: string | null
+): Promise<void> => {
+  if (!logId) {
+    return;
+  }
+
+  try {
+    await db.execute(
+      `UPDATE email_logs
+       SET status = ?, error_msg = ?
+       WHERE id = ?`,
+      [status, errorMsg, logId]
+    );
+  } catch (logErr) {
+    // Non-fatal: avoid interrupting main flow if log update fails
+    console.error("[email-log] Failed to update email log entry:", logErr);
+  }
+};
+
+const finalizePendingEmailLogs = async (): Promise<void> => {
+  try {
+    const [result] = await db.execute(
+      `UPDATE email_logs
+       SET status = 'sent', error_msg = NULL
+       WHERE status = 'sending'
+         AND created_at <= (NOW() - INTERVAL ? MINUTE)`,
+      [EMAIL_SENT_FINALIZE_MINUTES]
+    );
+
+    const affectedRows = (result as { affectedRows?: number }).affectedRows ?? 0;
+    if (affectedRows > 0) {
+      console.log(`[email-log] Finalized ${affectedRows} email log(s) from sending to sent`);
+    }
+  } catch (error) {
+    console.error("[email-log] Failed to finalize pending email logs:", error);
+  }
+};
+
+export const startEmailLogStatusFinalizer = () => {
+  if (emailStatusFinalizerTimer) {
+    return;
+  }
+
+  void finalizePendingEmailLogs();
+
+  emailStatusFinalizerTimer = setInterval(() => {
+    void finalizePendingEmailLogs();
+  }, EMAIL_STATUS_FINALIZER_INTERVAL_MS);
 };
 
 export const hashOtpCode = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -158,31 +238,18 @@ export const sendPaymentSuccessEmail = async (params: {
 
   const text = `Thank you, ${params.name}! Your payment was successful.\n\nOrder ID: ${params.orderId}\nInvoice ID: ${params.invoiceId}\nAmount Paid: ₹${params.amount}\nPayment Method: ${params.paymentMethod}\nPayment Time: ${params.paymentTime}\n\nYour invoice PDF is attached with this email.`;
 
-  if (!transporter) {
-    console.warn("SMTP not configured. Skipping payment success email.", { to: params.to, subject });
-    await insertEmailLog(params.to, subject, "payment_success", "skipped", null);
-    return;
-  }
-
-  try {
-    await transporter.sendMail({
-      from: fromAddress,
-      to: params.to,
-      subject,
-      html,
-      text,
-      attachments: [
-        {
-          filename: `Invoice-${params.invoiceId}.pdf`,
-          path: params.pdfPath,
-          contentType: "application/pdf",
-        },
-      ],
-    });
-    await insertEmailLog(params.to, subject, "payment_success", "sent", null);
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await insertEmailLog(params.to, subject, "payment_success", "failed", errMsg);
-    throw err;
-  }
+  await sendMail({
+    to: params.to,
+    subject,
+    html,
+    text,
+    emailType: "payment_success",
+    attachments: [
+      {
+        filename: `Invoice-${params.invoiceId}.pdf`,
+        path: params.pdfPath,
+        contentType: "application/pdf",
+      },
+    ],
+  });
 };

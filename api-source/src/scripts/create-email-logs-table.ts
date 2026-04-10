@@ -23,7 +23,7 @@ const run = async (): Promise<void> => {
             recipient   VARCHAR(255)     NOT NULL,
             subject     VARCHAR(500)     NOT NULL,
             email_type  VARCHAR(100)     NOT NULL,
-            status      ENUM('sent','failed','skipped') NOT NULL DEFAULT 'sent',
+            status      ENUM('sending','sent','failed','skipped') NOT NULL DEFAULT 'sending',
             error_msg   TEXT             NULL DEFAULT NULL,
             created_at  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -31,6 +31,12 @@ const run = async (): Promise<void> => {
             INDEX idx_email_type (email_type),
             INDEX idx_created_at (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Ensure existing installations also support the new "sending" state.
+    await db.execute(`
+        ALTER TABLE email_logs
+        MODIFY COLUMN status ENUM('sending','sent','failed','skipped') NOT NULL DEFAULT 'sending'
     `);
 
     console.log("[email-logs-migration] email_logs table created (or already exists).");
