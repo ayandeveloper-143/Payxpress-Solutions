@@ -38,6 +38,8 @@ export const env = {
     dbName: process.env.DB_NAME ?? "payxpress_api",
     paymentGatewayEnabled: toBoolean(process.env.PAYMENT_GATEWAY_ENABLED, true),
     paymentGateway: (process.env.PAYMENT_GATEWAY ?? "cashfree").toLowerCase(),
+    paymentSuccessWebhookUrl:
+        process.env.PAYMENT_SUCCESS_WEBHOOK_URL ?? "https://trpm.payxpress-solutions.com/api/webhook",
     cashfreeMode: process.env.CASHFREE_MODE === "production" ? "production" : "sandbox",
     cashfreeAppId:
         process.env.CASHFREE_MODE === "production"

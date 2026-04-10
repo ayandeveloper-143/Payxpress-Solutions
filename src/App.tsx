@@ -24,6 +24,7 @@ import ProductsPage from "./pages/ProductsPage.tsx";
 import CustomSolutionsPage from "./pages/CustomSolutionsPage.tsx";
 import Auth from "./pages/Auth.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import CheckoutBridge from "./pages/CheckoutBridge.tsx";
 import PaymentSuccess from "./pages/PaymentSuccess.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
@@ -68,6 +69,7 @@ const AppRoutes = () => {
       <Route path="/return-policy" element={<ReturnPolicy />} />
       <Route path="/cancel-policy" element={<CancelPolicy />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/k" element={<CheckoutBridge />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />

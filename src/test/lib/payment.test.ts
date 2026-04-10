@@ -89,4 +89,20 @@ describe("handlePayment (Cashfree)", () => {
       }),
     );
   });
+
+  it("skips createOrder when a cached order response is provided", async () => {
+    mockLoad.mockResolvedValueOnce({ checkout: mockCheckout });
+    mockCheckout.mockResolvedValueOnce({});
+
+    const result = await handlePayment({
+      createOrderResponse: cashfreeOrderResponse,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockCreateOrder).not.toHaveBeenCalled();
+    expect(mockCheckout).toHaveBeenCalledWith({
+      paymentSessionId: "sess-abc",
+      redirectTarget: "_modal",
+    });
+  });
 });

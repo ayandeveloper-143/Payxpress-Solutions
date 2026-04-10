@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiBaseUrl, storePodAgreement } from "@/lib/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { consumeStoredCreateOrderResponse, getStoredCreateOrderResponse } from "@/lib/checkout-bridge";
 import { handlePayment } from "@/lib/payment";
+import type { PaymentResult } from "@/lib/payment";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -30,6 +32,8 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { cart, getTotalPrice, syncCartToServer } = useCart();
   const [breakdown, setBreakdown] = useState(null);
+  const [storedCreateOrder, setStoredCreateOrder] = useState(() => getStoredCreateOrderResponse());
+  const storedPaymentAttemptedRef = useRef(false);
 
   // Fetch breakdown for current cart (not just after submit)
   useEffect(() => {
@@ -55,14 +59,36 @@ const Checkout = () => {
     };
     fetchBreakdown();
   }, [cart]);
-  const { user, isLoggedIn } = useAuth();
+  const { user, isAuthLoading, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [agreedToTnc, setAgreedToTnc] = useState(false);
 
+  const redirectTo = (path: string) => {
+    window.location.href = path;
+  };
+
+  const finalizePaymentResult = (result: PaymentResult) => {
+    if (result.success === true && result.orderId) {
+      if (user) {
+        storePodAgreement({
+          userUuid: user.id,
+          userEmail: user.email,
+          orderId: result.orderId,
+        }).catch((err) => console.warn("[pod] Failed to store agreement:", err));
+      }
+
+      redirectTo(`/payment-success?order_id=${encodeURIComponent(result.orderId)}&gateway=${encodeURIComponent(result.gateway ?? "cashfree")}`);
+      return;
+    }
+
+    const orderIdParam = result.orderId ? `?order_id=${encodeURIComponent(result.orderId)}` : "";
+    redirectTo(`/payment-failed${orderIdParam}`);
+  };
+
   // Device-aware login redirect/popup
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!isAuthLoading && !isLoggedIn && !localStorage.getItem("auth_token")) {
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
         navigate("/auth", { replace: true });
@@ -71,7 +97,41 @@ const Checkout = () => {
         window.dispatchEvent(new CustomEvent("show-login-popup"));
       }
     }
-  }, [isLoggedIn, navigate]);
+  }, [isAuthLoading, isLoggedIn, navigate]);
+
+  useEffect(() => {
+    if (!storedCreateOrder || storedPaymentAttemptedRef.current) {
+      return;
+    }
+
+    storedPaymentAttemptedRef.current = true;
+    const cachedOrder = consumeStoredCreateOrderResponse();
+
+    if (!cachedOrder) {
+      setStoredCreateOrder(null);
+      return;
+    }
+
+    const openStoredPayment = async () => {
+      try {
+        setIsProcessing(true);
+        const result = await handlePayment({ createOrderResponse: cachedOrder });
+
+        if (result.success === true && result.orderId) {
+          finalizePaymentResult(result);
+        } else {
+          redirectTo(`/payment-failed?order_id=${encodeURIComponent(cachedOrder.orderId)}`);
+        }
+      } catch (error) {
+        redirectTo(`/payment-failed?order_id=${encodeURIComponent(cachedOrder.orderId)}`);
+      } finally {
+        setStoredCreateOrder(null);
+        setIsProcessing(false);
+      }
+    };
+
+    openStoredPayment();
+  }, [storedCreateOrder, navigate]);
 
   // Always call hooks at the top level
   const form = useForm<CheckoutFormValues>({
@@ -93,7 +153,7 @@ const Checkout = () => {
   }, [user, form]);
 
   // Early return after all hooks
-  if (cart.length === 0) {
+  if (cart.length === 0 && !storedCreateOrder) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 pt-20">
         <div className="text-center max-w-md">
@@ -128,30 +188,9 @@ const Checkout = () => {
         phone: values.phone,
         address: values.address?.trim() || undefined,
       });
-
-      if (result.success === true && result.orderId) {
-        // Record POD agreement (non-fatal)
-        if (user) {
-          storePodAgreement({
-            userUuid: user.id,
-            userEmail: user.email,
-            orderId: result.orderId,
-          }).catch((err) => console.warn("[pod] Failed to store agreement:", err));
-        }
-        navigate(`/payment-success?order_id=${encodeURIComponent(result.orderId)}&gateway=${encodeURIComponent(result.gateway ?? "cashfree")}`);
-      } else {
-        toast({
-          title: "Payment Failed",
-          description: result.message || "Payment was not completed",
-          variant: "destructive",
-        });
-      }
+      finalizePaymentResult(result);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Checkout failed",
-        variant: "destructive",
-      });
+      redirectTo("/payment-failed");
     } finally {
       setIsProcessing(false);
     }

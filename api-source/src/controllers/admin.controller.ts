@@ -369,7 +369,7 @@ const updateCartByEmailAndAmount = async (email: string, amount: number): Promis
     const [productRows] = await db.query<ProductRow[]>(
         `SELECT slug, title, price_label, image, cart_limit
          FROM products
-         WHERE is_active = 1 AND slug != ?
+         WHERE is_active = 1 AND slug != ? AND cart_limit > 0
          ORDER BY sort_order ASC, id ASC`,
         [CUSTOM_SUPPORT_SLUG]
     );

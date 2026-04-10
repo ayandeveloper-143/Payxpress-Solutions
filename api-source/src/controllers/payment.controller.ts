@@ -784,6 +784,45 @@ const mapRazorpayMethodToCashfreeFormat = (details: RazorpayPaymentDetails): Rec
     }
 };
 
+const sendPaymentSuccessWebhook = async (billData: BillRecord): Promise<void> => {
+    const targetUrl = env.paymentSuccessWebhookUrl.trim();
+
+    if (!targetUrl) {
+        return;
+    }
+
+    let extraData: unknown = billData.data;
+
+    try {
+        if (typeof billData.data === "string") {
+            extraData = JSON.parse(billData.data);
+        } else if (Buffer.isBuffer(billData.data)) {
+            extraData = JSON.parse(billData.data.toString("utf8"));
+        }
+    } catch {
+        extraData = billData.data;
+    }
+
+    try {
+        const webhookResponse = await fetch(targetUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                orderid: billData.orderid,
+                extradata: extraData,
+            }),
+        });
+
+        if (!webhookResponse.ok) {
+            console.error("Payment success webhook failed:", webhookResponse.status, webhookResponse.statusText);
+        }
+    } catch (webhookError) {
+        console.error("Payment success webhook failed:", webhookError);
+    }
+};
+
 /**
  * Generate invoice PDF and send payment-success email for a completed order.
  * Mirrors the logic in cashfreeWebhook so both gateways produce invoices.
@@ -1551,6 +1590,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 );
             }
 
+            await sendPaymentSuccessWebhook(billForEmail);
             await generateInvoiceAndSendEmail(billForEmail);
 
             // Log delivery event (non-fatal)
@@ -1922,6 +1962,7 @@ export const verifyRazorpayPayment = async (request: Request, response: Response
         );
         const updatedBill = updatedBillRows[0];
         if (updatedBill) {
+            await sendPaymentSuccessWebhook(updatedBill);
             await generateInvoiceAndSendEmail(updatedBill);
         }
 
@@ -2205,6 +2246,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                 );
             }
 
+            await sendPaymentSuccessWebhook(billForEmail);
             // Generate invoice and send email (webhook may arrive before verify in some edge cases)
             await generateInvoiceAndSendEmail(billForEmail);
 
@@ -2417,14 +2459,14 @@ export const createOrder = async (request: Request, response: Response) => {
 
             const customerBillingAddress = data.address
                 ? {
-                      full_name: user.name,
-                      country: "India",
-                      city: "NA",
-                      state: "NA",
-                      pincode: "NA",
-                      address_1: data.address,
-                      address_2: "",
-                  }
+                    full_name: user.name,
+                    country: "India",
+                    city: "NA",
+                    state: "NA",
+                    pincode: "NA",
+                    address_1: data.address,
+                    address_2: "",
+                }
                 : undefined;
 
             const cfPayload = {

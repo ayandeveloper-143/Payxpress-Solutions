@@ -1,8 +1,8 @@
 import { load } from "@cashfreepayments/cashfree-js";
 import { ApiRequestError, createOrder } from "@/lib/api";
-import type { CreateOrderCashfreeResponse, CreateOrderRazorpayResponse } from "@/lib/api";
+import type { CreateOrderCashfreeResponse, CreateOrderRazorpayResponse, CreateOrderResponse } from "@/lib/api";
 
-interface PaymentResult {
+export interface PaymentResult {
   success: boolean;
   message: string;
   orderId?: string;
@@ -148,16 +148,18 @@ const handleRazorpayOrderResult = (order: CreateOrderRazorpayResponse): Promise<
 };
 
 export interface HandlePaymentParams {
-  phone: string;
+  phone?: string;
   address?: string;
+  createOrderResponse?: CreateOrderResponse;
 }
 
 export const handlePayment = async (params: HandlePaymentParams): Promise<PaymentResult> => {
   try {
-    const order = await createOrder({
-      phone: params.phone,
-      address: params.address,
-    });
+    const order = params.createOrderResponse
+      ?? await createOrder({
+        phone: params.phone ?? "",
+        address: params.address,
+      });
 
     if (order.gateway === "razorpay") {
       await loadRazorpayScript();
@@ -171,8 +173,8 @@ export const handlePayment = async (params: HandlePaymentParams): Promise<Paymen
     if (error instanceof ApiRequestError) {
       const fieldErrors = error.errors
         ? Object.values(error.errors)
-            .flat()
-            .filter((item) => typeof item === "string" && item.trim().length > 0)
+          .flat()
+          .filter((item) => typeof item === "string" && item.trim().length > 0)
         : [];
 
       return {
