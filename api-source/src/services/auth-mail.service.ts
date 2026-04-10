@@ -29,8 +29,8 @@ const transporter = hasMailConfig
   : null;
 
 const fromAddress = env.mailFrom || env.smtpUser || "no-reply@example.com";
-const EMAIL_SENT_FINALIZE_MINUTES = 5; // After how many minutes a "sending" email log should be finalized to "sent"
-const EMAIL_STATUS_FINALIZER_INTERVAL_MS = 60_000;
+const EMAIL_SENT_FINALIZE_SECOND = 30; // After how many minutes a "sending" email log should be finalized to "sent"
+const EMAIL_STATUS_FINALIZER_INTERVAL_MS = 30_000;
 let emailStatusFinalizerTimer: NodeJS.Timeout | null = null;
 
 const sendMail = async (params: {
@@ -135,8 +135,8 @@ const finalizePendingEmailLogs = async (): Promise<void> => {
       `UPDATE email_logs
        SET status = 'sent', error_msg = NULL
        WHERE status = 'sending'
-         AND created_at <= (NOW() - INTERVAL ? MINUTE)`,
-      [EMAIL_SENT_FINALIZE_MINUTES]
+         AND created_at <= (NOW() - INTERVAL ? SECOND)`,
+      [EMAIL_SENT_FINALIZE_SECOND]
     );
 
     const affectedRows = (result as { affectedRows?: number }).affectedRows ?? 0;
