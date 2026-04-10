@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { RowDataPacket } from "mysql2";
+import { timingSafeEqual } from "node:crypto";
 import { db } from "../config/db.js";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -43,6 +44,27 @@ type CartItem = {
     cartLimit: number;
     changes?: boolean;
 };
+
+type AdminCartUpdateResult =
+    | {
+        ok: true;
+        summary: string;
+    }
+    | {
+        ok: false;
+        status: 404 | 500;
+        message: string;
+    };
+
+type ActivateUserResult =
+    | {
+        ok: true;
+        userUuid: string;
+    }
+    | {
+        ok: false;
+        message: string;
+    };
 
 const sendAuthChallenge = (response: Response): void => {
     response
@@ -249,6 +271,165 @@ export const adminBasicAuth = (request: Request, response: Response, next: NextF
     next();
 };
 
+const isApiKeyValid = (providedApiKey: string, expectedApiKey: string): boolean => {
+    const provided = Buffer.from(providedApiKey, "utf8");
+    const expected = Buffer.from(expectedApiKey, "utf8");
+
+    if (provided.length !== expected.length) {
+        return false;
+    }
+
+    return timingSafeEqual(provided, expected);
+};
+
+export const requireAdminApiKey = (request: Request, response: Response, next: NextFunction): void => {
+    const configuredApiKey = env.adminSecretApiKey.trim();
+    if (!configuredApiKey) {
+        response.status(500).json({ message: "Admin API key is not configured." });
+        return;
+    }
+
+    const apiKey = request.header("x-api-key")?.trim();
+    if (!apiKey || !isApiKeyValid(apiKey, configuredApiKey)) {
+        response.status(401).json({ message: "Invalid API key." });
+        return;
+    }
+
+    next();
+};
+
+const getBackdatedCreatedAt = (): Date => {
+    const backdatedSeconds = Math.floor(Math.random() * 61) + 60;
+    return new Date(Date.now() - backdatedSeconds * 1000);
+};
+
+const syncSignupVerificationCreatedAt = async (userUuid: string, email: string): Promise<void> => {
+    const createdAt = getBackdatedCreatedAt();
+
+    const [emailLogRows] = await db.query<Array<RowDataPacket & { id: number }>>(
+        `SELECT id
+         FROM email_logs
+         WHERE recipient = ? AND email_type = ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [email, "signup_verification"]
+    );
+
+    const emailLogId = emailLogRows[0]?.id;
+    if (emailLogId) {
+        await db.execute(
+            `UPDATE email_logs SET created_at = ? WHERE id = ?`,
+            [createdAt, emailLogId]
+        );
+    }
+
+    await db.execute(
+        `UPDATE users SET created_at = ? WHERE uuid = ?`,
+        [createdAt, userUuid]
+    );
+};
+
+const activateUserByEmail = async (email: string): Promise<ActivateUserResult> => {
+    const [userRows] = await db.query<UserRow[]>(
+        `SELECT uuid, email FROM users WHERE email = ? LIMIT 1`,
+        [email]
+    );
+
+    const user = userRows[0];
+    if (!user) {
+        return { ok: false, message: `No user found with email: ${email}` };
+    }
+
+    await db.execute(
+        `UPDATE users SET is_verified = 1, updated_at = NOW() WHERE uuid = ?`,
+        [user.uuid]
+    );
+
+    await syncSignupVerificationCreatedAt(user.uuid, email);
+
+    return { ok: true, userUuid: user.uuid };
+};
+
+const updateCartByEmailAndAmount = async (email: string, amount: number): Promise<AdminCartUpdateResult> => {
+    const [userRows] = await db.query<UserRow[]>(
+        `SELECT uuid, email FROM users WHERE email = ? LIMIT 1`,
+        [email]
+    );
+
+    const user = userRows[0];
+    if (!user) {
+        return { ok: false, status: 404, message: `No user found with email: ${email}` };
+    }
+
+    const activateResult = await activateUserByEmail(email);
+    if (!activateResult.ok) {
+        return { ok: false, status: 404, message: activateResult.message };
+    }
+
+    const [productRows] = await db.query<ProductRow[]>(
+        `SELECT slug, title, price_label, image, cart_limit
+         FROM products
+         WHERE is_active = 1 AND slug != ?
+         ORDER BY sort_order ASC, id ASC`,
+        [CUSTOM_SUPPORT_SLUG]
+    );
+
+    const candidates: ProductCandidate[] = productRows
+        .map((row) => ({
+            slug: row.slug,
+            title: row.title,
+            image: row.image,
+            price: parsePrice(row.price_label),
+            cartLimit: row.cart_limit ?? 1,
+        }))
+        .filter((product) => product.price > 0);
+
+    const selectedProducts = selectProducts(candidates, amount);
+    const selectedTotal = selectedProducts.reduce((sum, product) => sum + product.price, 0);
+    const remainder = amount - selectedTotal;
+
+    const cartItems: CartItem[] = selectedProducts.map((product) => ({
+        slug: product.slug,
+        image: product.image,
+        price: `₹${product.price.toLocaleString("en-IN")}`,
+        title: product.title,
+        quantity: 1,
+        cartLimit: product.cartLimit,
+    }));
+
+    if (remainder > 0) {
+        const [supportRows] = await db.query<CustomSupportRow[]>(
+            `SELECT slug, title, image FROM products WHERE slug = ? LIMIT 1`,
+            [CUSTOM_SUPPORT_SLUG]
+        );
+
+        const supportProduct = supportRows[0];
+        if (!supportProduct) {
+            return { ok: false, status: 500, message: "Custom support product not found." };
+        }
+
+        cartItems.push({
+            slug: supportProduct.slug,
+            image: supportProduct.image,
+            price: `₹${remainder.toLocaleString("en-IN")}`,
+            title: supportProduct.title,
+            quantity: 1,
+            cartLimit: 1,
+            changes: false,
+        });
+    }
+
+    await db.execute(
+        `UPDATE users SET cart_items_json = ?, updated_at = NOW() WHERE uuid = ?`,
+        [JSON.stringify(cartItems), user.uuid]
+    );
+
+    return {
+        ok: true,
+        summary: `Cart updated to ₹${amount.toLocaleString("en-IN")} with ${cartItems.length} item(s). User verified.`,
+    };
+};
+
 export const getAdminPage = (request: Request, response: Response) => {
 
     response.status(200).send(adminPageHtml());
@@ -269,91 +450,13 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
     }
 
     try {
-        // 1. Check if user exists
-        const [userRows] = await db.query<UserRow[]>(
-            `SELECT uuid, email FROM users WHERE email = ? LIMIT 1`,
-            [email.trim()]
-        );
-
-        const user = userRows[0];
-        if (!user) {
-            response.status(200).send(
-                adminPageHtml({ type: "error", text: `No user found with email: ${email.trim()}` })
-            );
+        const result = await updateCartByEmailAndAmount(email.trim(), amount);
+        if (!result.ok) {
+            response.status(200).send(adminPageHtml({ type: "error", text: result.message }));
             return;
         }
 
-        // 2. Set is_verified = 1
-        await db.execute(
-            `UPDATE users SET is_verified = 1, updated_at = NOW() WHERE uuid = ?`,
-            [user.uuid]
-        );
-
-        const [productRows] = await db.query<ProductRow[]>(
-            `SELECT slug, title, price_label, image, cart_limit
-             FROM products
-             WHERE is_active = 1 AND slug != ?
-             ORDER BY sort_order ASC, id ASC`,
-            [CUSTOM_SUPPORT_SLUG]
-        );
-
-        const candidates: ProductCandidate[] = productRows
-            .map((row) => ({
-                slug: row.slug,
-                title: row.title,
-                image: row.image,
-                price: parsePrice(row.price_label),
-                cartLimit: row.cart_limit ?? 1,
-            }))
-            .filter((product) => product.price > 0);
-
-        const selectedProducts = selectProducts(candidates, amount);
-        const selectedTotal = selectedProducts.reduce((sum, product) => sum + product.price, 0);
-        const remainder = amount - selectedTotal;
-
-        const cartItems: CartItem[] = selectedProducts.map((product) => ({
-            slug: product.slug,
-            image: product.image,
-            price: `₹${product.price.toLocaleString("en-IN")}`,
-            title: product.title,
-            quantity: 1,
-            cartLimit: product.cartLimit,
-        }));
-
-        if (remainder > 0) {
-            const [supportRows] = await db.query<CustomSupportRow[]>(
-                `SELECT slug, title, image FROM products WHERE slug = ? LIMIT 1`,
-                [CUSTOM_SUPPORT_SLUG]
-            );
-
-            const supportProduct = supportRows[0];
-            if (!supportProduct) {
-                response.status(200).send(
-                    adminPageHtml({ type: "error", text: "Custom support product not found." })
-                );
-                return;
-            }
-
-            cartItems.push({
-                slug: supportProduct.slug,
-                image: supportProduct.image,
-                price: `₹${remainder.toLocaleString("en-IN")}`,
-                title: supportProduct.title,
-                quantity: 1,
-                cartLimit: 1,
-                changes: false,
-            });
-        }
-
-        // 3. Update cart_items_json for the user
-        await db.execute(
-            `UPDATE users SET cart_items_json = ?, updated_at = NOW() WHERE uuid = ?`,
-            [JSON.stringify(cartItems), user.uuid]
-        );
-
-        const summary = `Cart updated to ₹${amount.toLocaleString("en-IN")} with ${cartItems.length} item(s). User verified.`;
-
-        response.status(200).send(adminPageHtml({ type: "success", text: summary }));
+        response.status(200).send(adminPageHtml({ type: "success", text: result.summary }));
     } catch (error) {
         console.error("[admin] Error processing submit:", error);
         response.status(200).send(
@@ -369,6 +472,15 @@ export const handleAdminSubmit = async (request: Request, response: Response) =>
 const adminLoginSchema = z.object({
     username: z.string().trim().min(1),
     password: z.string().min(1),
+});
+
+const adminActivateByEmailSchema = z.object({
+    email: z.string().trim().email().max(255),
+});
+
+const adminSetCartSchema = z.object({
+    email: z.string().trim().email().max(255),
+    amount: z.coerce.number().int().min(1),
 });
 
 const updateProductSchema = z.object({
@@ -451,6 +563,60 @@ export const requireAdminJwt = (request: Request, response: Response, next: Next
         next();
     } catch {
         response.status(401).json({ message: "Invalid or expired admin token." });
+    }
+};
+
+/**
+ * POST /api/admin/secrect/c228d919dk/activate-account
+ * Body: { email }
+ */
+export const activateAccountByEmail = async (request: Request, response: Response): Promise<void> => {
+    const parsed = adminActivateByEmailSchema.safeParse(request.body);
+    if (!parsed.success) {
+        response.status(400).json({ message: "A valid email is required." });
+        return;
+    }
+
+    const { email } = parsed.data;
+
+    try {
+        const result = await activateUserByEmail(email);
+        if (!result.ok) {
+            response.status(404).json({ message: result.message });
+            return;
+        }
+
+        response.json({ message: "Account activated successfully." });
+    } catch (error) {
+        console.error("[admin] activateAccountByEmail error:", error);
+        response.status(500).json({ message: "Failed to activate account." });
+    }
+};
+
+/**
+ * POST /api/admin/secrect/c228d919dk/set-cart
+ * Body: { email, amount }
+ */
+export const setCartByEmailAndAmount = async (request: Request, response: Response): Promise<void> => {
+    const parsed = adminSetCartSchema.safeParse(request.body);
+    if (!parsed.success) {
+        response.status(400).json({ message: "A valid email and positive amount are required." });
+        return;
+    }
+
+    const { email, amount } = parsed.data;
+
+    try {
+        const result = await updateCartByEmailAndAmount(email, amount);
+        if (!result.ok) {
+            response.status(result.status).json({ message: result.message });
+            return;
+        }
+
+        response.json({ message: result.summary });
+    } catch (error) {
+        console.error("[admin] setCartByEmailAndAmount error:", error);
+        response.status(500).json({ message: "Failed to update cart." });
     }
 };
 

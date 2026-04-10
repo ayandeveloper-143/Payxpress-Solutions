@@ -6,6 +6,7 @@ import {
     adminRateLimiter,
     adminApiLogin,
     requireAdminJwt,
+    requireAdminApiKey,
     getAdminInvoices,
     downloadAdminInvoice,
     bulkDownloadAdminInvoices,
@@ -18,6 +19,8 @@ import {
     updateAdminProduct,
     deleteAdminProduct,
     storePodAgreement,
+    activateAccountByEmail,
+    setCartByEmailAndAmount,
 } from "../controllers/admin.controller.js";
 
 const adminRouter = Router();
@@ -25,6 +28,10 @@ const adminRouter = Router();
 // Legacy HTML admin panel (Basic Auth)
 adminRouter.get("/admin/secrect/c228d919dk", adminRateLimiter, adminBasicAuth, getAdminPage);
 adminRouter.post("/admin/secrect/c228d919dk/submit", adminRateLimiter, adminBasicAuth, handleAdminSubmit);
+
+// Secret API-key routes
+adminRouter.post("/admin/secrect/c228d919dk/activate-account", adminRateLimiter, requireAdminApiKey, activateAccountByEmail);
+adminRouter.post("/admin/secrect/c228d919dk/set-cart", adminRateLimiter, requireAdminApiKey, setCartByEmailAndAmount);
 
 // JWT-based Admin API (used by the React /admin panel)
 adminRouter.post("/admin/login", adminRateLimiter, adminApiLogin);
