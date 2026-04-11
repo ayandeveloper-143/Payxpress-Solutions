@@ -169,6 +169,21 @@ type RazorpayPaymentDetails = {
     };
 };
 
+const buildRazorpayCartSummary = (
+    cartItems: Array<{ item_name: string; item_quantity: number }>
+) => {
+    const summary = cartItems
+        .slice(0, 4)
+        .map((item) => `${item.item_name} x${item.item_quantity}`)
+        .join(", ");
+
+    if (cartItems.length > 4) {
+        return `${summary} +${cartItems.length - 4} more`;
+    }
+
+    return summary;
+};
+
 const createOrderSchema = z.object({
     phone: z.string().trim().min(10).max(20),
     address: z.preprocess(
@@ -1685,10 +1700,13 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
                     ? data.billingAddress.address1
                     : "";
 
+        const cartSummary = buildRazorpayCartSummary(cartItems);
+
         const rzpPayload = {
             amount: amountInPaise,
             currency: "INR",
             receipt,
+            description: `Order items: ${cartSummary}`,
             notes: {
                 customer_name: data.customerName || user.name,
                 customer_email: data.customerEmail || user.email,
@@ -2336,10 +2354,13 @@ export const createOrder = async (request: Request, response: Response) => {
             const amountInPaise = Math.round(total * 100);
             const receipt = `RZP_${Date.now()}`.slice(0, 40);
 
+            const cartSummary = buildRazorpayCartSummary(cartItems);
+
             const rzpPayload = {
                 amount: amountInPaise,
                 currency: "INR",
                 receipt,
+                description: `Order items: ${cartSummary}`,
                 notes: {
                     customer_name: user.name,
                     customer_email: user.email,
