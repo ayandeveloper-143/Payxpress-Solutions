@@ -1706,8 +1706,8 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
             amount: amountInPaise,
             currency: "INR",
             receipt,
-            description: `Order items: ${cartSummary}`,
             notes: {
+                description: `Order items: ${cartSummary}`,
                 customer_name: data.customerName || user.name,
                 customer_email: data.customerEmail || user.email,
                 customer_phone: data.customerPhone,
@@ -2360,8 +2360,8 @@ export const createOrder = async (request: Request, response: Response) => {
                 amount: amountInPaise,
                 currency: "INR",
                 receipt,
-                description: `Order items: ${cartSummary}`,
                 notes: {
+                    description: `Order items: ${cartSummary}`,
                     customer_name: user.name,
                     customer_email: user.email,
                     customer_phone: data.phone,
