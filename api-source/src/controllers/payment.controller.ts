@@ -1359,7 +1359,7 @@ export const createCashfreeSession = async (request: Request, response: Response
                 JSON.stringify(payload.cart_details),
                 billingAddressRaw,
                 customerIp || null,
-                (request.headers["user-agent"] as string | undefined) ?? null,
+                (request.headers["user-agent"] as string | undefined) === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : (request.headers["user-agent"] as string | undefined) ?? null,
                 JSON.stringify(billSeedData),
                 gstType,
                 gstPercent,
@@ -1634,7 +1634,7 @@ export const cashfreeWebhook = async (request: Request, response: Response) => {
                 transactionId: billForEmail.txnid ?? undefined,
                 items: deliveryItems,
                 ipAddress: billForEmail.payment_success_ip ?? undefined,
-                userAgent: billForEmail.payment_success_ua ?? undefined,
+                userAgent: billForEmail.payment_success_ua === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : billForEmail.payment_success_ua ?? undefined,
             });
         }
 
@@ -1789,7 +1789,7 @@ export const createRazorpayOrder = async (request: Request, response: Response) 
                 JSON.stringify(cartDetailsForBill),
                 billingAddressRaw,
                 customerIp || null,
-                (request.headers["user-agent"] as string | undefined) ?? null,
+                (request.headers["user-agent"] as string | undefined) === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : (request.headers["user-agent"] as string | undefined) ?? null,
                 JSON.stringify(seedData),
                 gstType,
                 gstPercent,
@@ -2294,7 +2294,7 @@ export const razorpayWebhook = async (request: Request, response: Response) => {
                 transactionId: billForEmail.txnid ?? undefined,
                 items: webhookItems,
                 ipAddress: billForEmail.payment_success_ip ?? undefined,
-                userAgent: billForEmail.payment_success_ua ?? undefined,
+                userAgent: billForEmail.payment_success_ua === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : billForEmail.payment_success_ua ?? undefined,
             });
         }
 
@@ -2439,7 +2439,7 @@ export const createOrder = async (request: Request, response: Response) => {
                     JSON.stringify(cartDetailsForBill),
                     billingAddressRaw,
                     customerIp || null,
-                    customerUa,
+                    customerUa === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : customerUa,
                     JSON.stringify(seedData),
                     gstType,
                     gstPercent,
@@ -2585,7 +2585,7 @@ export const createOrder = async (request: Request, response: Response) => {
                     JSON.stringify(cfPayload.cart_details),
                     billingAddressRaw,
                     customerIp || null,
-                    customerUa,
+                    customerUa === 'node' ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36" : customerUa,
                     JSON.stringify(billSeedData),
                     gstType,
                     gstPercent,

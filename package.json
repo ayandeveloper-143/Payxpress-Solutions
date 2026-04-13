@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && rm -rf dist/uploads && ln -sf ../public/uploads dist/uploads",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

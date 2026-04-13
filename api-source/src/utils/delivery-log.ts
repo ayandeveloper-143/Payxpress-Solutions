@@ -42,8 +42,11 @@ export const logDeliveryEvent = async (params: {
 }): Promise<void> => {
     try {
         const ip = params.ipAddress ?? (params.request ? getClientIp(params.request) : null);
-        const ua = params.userAgent ?? (params.request ? (params.request.headers["user-agent"] ?? null) : null);
-
+        let ua = params.userAgent ?? (params.request ? (params.request.headers["user-agent"] ?? null) : null);
+        if (ua === 'node') {
+            // Handle Node.js specific user agent if needed
+            ua = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36";
+        }
         await db.execute(
             `INSERT INTO delivery_logs
                 (user_uuid, user_email, event_type, order_id, invoice_id, transaction_id, ip_address, user_agent, status, items_json)

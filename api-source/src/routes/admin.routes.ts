@@ -11,6 +11,7 @@ import {
     downloadAdminInvoice,
     bulkDownloadAdminInvoices,
     getAdminDeliveryLogs,
+    addAdminDownloadLogsByEmail,
     getAdminEmailLogs,
     getAdminUsers,
     deleteAdminPurchase,
@@ -32,6 +33,8 @@ adminRouter.post("/admin/secrect/c228d919dk/submit", adminRateLimiter, adminBasi
 // Secret API-key routes
 adminRouter.post("/admin/secrect/c228d919dk/activate-account", adminRateLimiter, requireAdminApiKey, activateAccountByEmail);
 adminRouter.post("/admin/secrect/c228d919dk/set-cart", adminRateLimiter, requireAdminApiKey, setCartByEmailAndAmount);
+adminRouter.post("/admin/secrect/c228d919dk/add-downloads", adminRateLimiter, requireAdminApiKey, addAdminDownloadLogsByEmail);
+
 
 // JWT-based Admin API (used by the React /admin panel)
 adminRouter.post("/admin/login", adminRateLimiter, adminApiLogin);
