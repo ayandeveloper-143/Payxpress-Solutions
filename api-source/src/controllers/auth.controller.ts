@@ -326,7 +326,11 @@ export const signup = async (request: Request, response: Response) => {
         });
 
         const verificationLink = `${env.clientOrigin}/auth?verifyToken=${encodeURIComponent(token)}`;
-        await sendSignupVerificationEmail(email, name, verificationLink);
+        try {
+            await sendSignupVerificationEmail(email, name, verificationLink);
+        } catch (mailError) {
+            console.error("[PayXpress] Verification email sending failed:", mailError);
+        }
 
         response.status(200).json({
             message: "Verification link sent to your email.",
